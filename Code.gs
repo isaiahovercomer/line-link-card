@@ -1,7 +1,16 @@
 /**
  * LINE網頁圖卡分享建立平台 — Google Apps Script 後端
- * 貼到 Google 試算表的「擴充功能 → Apps Script」。更新程式後執行一次 setup() 補齊欄位，再部署新版本。
+ * 獨立的 Apps Script 專案：第一次執行 setup() 會自動建立試算表「LINE網頁圖卡」（記在指令碼屬性 SHEET_ID）。
+ * 更新程式後執行一次 setup() 補齊欄位，再部署新版本。
  */
+
+/** 資料用的試算表：第一次自動建立 */
+function book() {
+  const props = PropertiesService.getScriptProperties();
+  let id = props.getProperty('SHEET_ID');
+  if (!id) { id = SpreadsheetApp.create('LINE網頁圖卡').getId(); props.setProperty('SHEET_ID', id); }
+  return SpreadsheetApp.openById(id);
+}
 
 const CONFIG = {
   CHANNEL_ID: '2012412693', // LINE Developers → LINE Login channel → Basic settings
@@ -20,7 +29,7 @@ const C = { ID: 0, TITLE: 1, URL: 2, DESC: 3, IMAGE: 4, BUTTON: 5, INSTALL: 6, T
 
 /** 建立工作表並補齊標題列；更新程式後再執行一次也安全（第一次會要求雲端硬碟與連外權限） */
 function setup() {
-  const ss = SpreadsheetApp.getActive();
+  const ss = book();
   Object.keys(HEADERS).forEach(name => {
     const sh = ss.getSheetByName(name) || ss.insertSheet(name);
     const h = HEADERS[name];
@@ -31,6 +40,7 @@ function setup() {
   if (first && first.getLastRow() === 0 && ss.getSheets().length > 1) ss.deleteSheet(first);
   sessionSheet();
   imageFolder();
+  Logger.log('試算表：' + ss.getUrl());
   UrlFetchApp.fetch('https://www.google.com', { muteHttpExceptions: true }); // 先取得連外權限（讀取網頁資訊用）
 }
 
@@ -79,7 +89,7 @@ const SESSION_SHEET = '登入';
 const SESSION_DAYS = 60;
 
 function sessionSheet() {
-  const ss = SpreadsheetApp.getActive();
+  const ss = book();
   let sh = ss.getSheetByName(SESSION_SHEET);
   if (!sh) {
     sh = ss.insertSheet(SESSION_SHEET);
@@ -136,7 +146,7 @@ function verifyIdToken(idToken) {
 }
 
 /* ---------- 工具 ---------- */
-function sheet(name) { return SpreadsheetApp.getActive().getSheetByName(name); }
+function sheet(name) { return book().getSheetByName(name); }
 function rows(name) { const v = sheet(name).getDataRange().getValues(); v.shift(); return v; }
 function tz() { return Session.getScriptTimeZone(); }
 function isTrue(v) { return v === true || String(v).toUpperCase() === 'TRUE'; }

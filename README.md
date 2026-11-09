@@ -21,7 +21,7 @@
 
 ## 設定
 
-1. 試算表「LINE網頁圖卡」→ 擴充功能 → Apps Script，貼上 `Code.gs`，執行 `setup`，部署成網頁應用程式（執行身分：我；存取權：所有人）。
+1. 新的 Apps Script 專案貼上 `Code.gs`，執行 `setup`（會自動建立試算表「LINE網頁圖卡」），部署成網頁應用程式（執行身分：我；存取權：所有人）。
 2. LINE Developers：Provider「CITC」的 LINE Login channel `2012412693` → LIFF → Add：Size Full、Endpoint 為 GitHub Pages 網址、Scopes `openid` `profile`、Share target picker ON。
 3. `index.html` 最上方填 `LIFF_ID` 和 `GAS_URL`。
 4. 管理員：把 LINE userId 填進「發布者」工作表。
