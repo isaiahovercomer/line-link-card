@@ -219,8 +219,7 @@ const LIFF_ID = '請填 LIFF ID';
 const GAS_URL = '請填 Apps Script 網址';
 /* ================================ */
 /** 自己的網站：網址加上 ?install=1 時，網站本身會跳出安裝提示，所以「加到主畫面」直接前往網站 */
-// 原文對照聖經上線 ?install=1 後，加入 'isaiahovercomer.github.io/interlinear-bible/'
-const OWN_HOSTS = [];
+const OWN_HOSTS = ['isaiahovercomer.github.io/interlinear-bible/'];
 
 const PARAMS = new URLSearchParams(location.search);
 const DEMO = LIFF_ID.startsWith('請填') || PARAMS.has('demo');
