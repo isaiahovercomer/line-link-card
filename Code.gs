@@ -4,6 +4,23 @@
  * 更新程式後執行一次 setup() 補齊欄位，再部署新版本。
  */
 
+/** 建立工作表並補齊標題列；更新程式後再執行一次也安全（第一次會要求雲端硬碟與連外權限） */
+function setup() {
+  const ss = book();
+  Object.keys(HEADERS).forEach(name => {
+    const sh = ss.getSheetByName(name) || ss.insertSheet(name);
+    const h = HEADERS[name];
+    sh.getRange(1, 1, 1, h.length).setValues([h]).setFontWeight('bold');
+    sh.setFrozenRows(1);
+  });
+  const first = ss.getSheetByName('工作表1') || ss.getSheetByName('Sheet1');
+  if (first && first.getLastRow() === 0 && ss.getSheets().length > 1) ss.deleteSheet(first);
+  sessionSheet();
+  imageFolder();
+  Logger.log('試算表：' + ss.getUrl());
+  UrlFetchApp.fetch('https://www.google.com', { muteHttpExceptions: true }); // 先取得連外權限（讀取網頁資訊用）
+}
+
 /** 資料用的試算表：第一次自動建立 */
 function book() {
   const props = PropertiesService.getScriptProperties();
@@ -26,23 +43,6 @@ const HEADERS = {
 
 // 「圖卡」工作表的欄位位置（從 0 開始）
 const C = { ID: 0, TITLE: 1, URL: 2, DESC: 3, IMAGE: 4, BUTTON: 5, INSTALL: 6, THEME: 7, ICON: 8, CREATOR: 9, CREATED: 10, SENT: 11, LAST: 12, EXTERNAL: 13 };
-
-/** 建立工作表並補齊標題列；更新程式後再執行一次也安全（第一次會要求雲端硬碟與連外權限） */
-function setup() {
-  const ss = book();
-  Object.keys(HEADERS).forEach(name => {
-    const sh = ss.getSheetByName(name) || ss.insertSheet(name);
-    const h = HEADERS[name];
-    sh.getRange(1, 1, 1, h.length).setValues([h]).setFontWeight('bold');
-    sh.setFrozenRows(1);
-  });
-  const first = ss.getSheetByName('工作表1') || ss.getSheetByName('Sheet1');
-  if (first && first.getLastRow() === 0 && ss.getSheets().length > 1) ss.deleteSheet(first);
-  sessionSheet();
-  imageFolder();
-  Logger.log('試算表：' + ss.getUrl());
-  UrlFetchApp.fetch('https://www.google.com', { muteHttpExceptions: true }); // 先取得連外權限（讀取網頁資訊用）
-}
 
 function doGet() {
   return json({ ok: true, msg: '網頁圖卡平台運作中' });
