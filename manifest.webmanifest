@@ -1,0 +1,18 @@
+{
+  "id": "./",
+  "name": "LINE網頁圖卡分享建立平台",
+  "short_name": "網頁圖卡",
+  "description": "把網頁做成 LINE 圖卡：有預覽圖、開啟網頁和加到手機主畫面的按鈕。",
+  "lang": "zh-Hant",
+  "start_url": "./?pwa=1",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#FAF6EE",
+  "theme_color": "#2F3343",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

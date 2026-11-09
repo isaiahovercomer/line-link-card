@@ -1,0 +1,1018 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2F3343">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="icon" href="icons/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png" sizes="180x180">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="網頁圖卡">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="description" content="把網頁做成 LINE 圖卡：有預覽圖、開啟網頁和加到手機主畫面的按鈕。">
+<meta property="og:title" content="LINE網頁圖卡分享建立平台">
+<meta property="og:description" content="把網頁做成 LINE 圖卡：有預覽圖、開啟網頁和加到手機主畫面的按鈕。">
+<title>LINE網頁圖卡分享建立平台</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;900&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://script.google.com" crossorigin>
+<link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<style>
+  :root {
+    /* 平台配色固定：IN CHRIST 配色（米白紙、海軍藍、金、磚紅） */
+    --sky: #FAF6EE; --sky-2: #F0E9DB; --paper: #FFFDF8;
+    --ink: #2F3343; --ink-2: #67645F; --rule: #E4DCCC;
+    --marigold: #C49356; --gold-text: #8A6431; --gold-soft: rgba(196, 147, 86, .16);
+    --line: #2F3343; --line-dark: #1E2130;
+    --chrome: #2F3343; --chrome-fg: #F7F1E4; --chrome-muted: #C9C2B3;
+    --stamp: #B03A2E;
+    --shadow: 0 1px 2px rgba(60, 40, 20, .05), 0 8px 24px rgba(60, 40, 20, .08);
+    --serif: "Noto Serif TC", "Songti TC", serif;
+    --sans: "Noto Sans TC", -apple-system, "PingFang TC", "Microsoft JhengHei", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--sky); color: var(--ink); font-family: var(--sans); font-size: 16px; line-height: 1.6; -webkit-text-size-adjust: 100%; }
+  button, input, textarea { font: inherit; color: inherit; }
+  :focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+  [hidden] { display: none !important; }
+  #app { max-width: 480px; margin: 0 auto; padding: 0 16px calc(120px + env(safe-area-inset-bottom)); }
+
+  /* ---------- 頂部 ---------- */
+  header.top { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 0 -16px; padding: calc(22px + env(safe-area-inset-top)) 16px 18px; background: var(--chrome); color: var(--chrome-fg); border-bottom: 3px solid var(--marigold); }
+  header.top .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  header.top .logo { width: 44px; height: 44px; flex: none; }
+  header.top h1 { font-family: var(--serif); font-weight: 900; font-size: 24px; letter-spacing: .06em; margin: 0; color: var(--chrome-fg); }
+  header.top .help { width: 34px; height: 34px; flex: none; border-radius: 50%; border: 1.5px solid var(--marigold); background: transparent; color: var(--marigold); font-family: var(--serif); font-weight: 900; font-size: 18px; cursor: pointer; }
+  .demo-note { background: var(--gold-soft); color: var(--gold-text); font-size: 13px; padding: 8px 12px; border-radius: 8px; margin: 8px 0 4px; }
+  .tabs { display: flex; gap: 22px; border-bottom: 2px solid var(--rule); margin: 14px 0 20px; }
+  .tabs button { background: none; border: 0; padding: 10px 0; font-size: 16px; font-weight: 500; color: var(--ink-2); border-bottom: 3px solid transparent; margin-bottom: -2px; cursor: pointer; }
+  .tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--marigold); font-weight: 700; }
+  .tabs .n { font-size: 13px; color: var(--ink-2); margin-left: 4px; }
+  .subbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 16px 0 14px; }
+  .back { background: none; border: 0; padding: 6px 0; font-size: 16px; color: var(--ink-2); cursor: pointer; }
+
+  /* ---------- 圖卡預覽（跟群組裡看到的一樣） ---------- */
+  .ticket { position: relative; background: var(--paper); border-radius: 18px; overflow: hidden; box-shadow: var(--shadow); border-top: 6px solid var(--line); }
+  .ticket .hero { width: 100%; aspect-ratio: 1.91 / 1; object-fit: cover; display: block; background: var(--rule); }
+  .ticket .main { padding: 18px 22px 16px; }
+  .ticket .site { display: flex; align-items: center; gap: 6px; color: var(--ink-2); font-size: 13px; margin: 0 0 6px; word-break: break-all; }
+  .ticket .title { font-family: var(--serif); font-weight: 900; font-size: 23px; line-height: 1.35; margin: 0; word-break: break-word; }
+  .ticket .title.empty { color: var(--rule); }
+  .ticket .desc { color: var(--ink-2); font-size: 14px; margin: 10px 0 0; white-space: pre-wrap; word-break: break-word; }
+  .ticket .perf { position: relative; height: 0; border-top: 2px dashed var(--rule); margin: 0 18px; }
+  .ticket .perf::before, .ticket .perf::after { content: ""; position: absolute; top: -13px; width: 24px; height: 24px; border-radius: 50%; background: var(--sky); }
+  .ticket .perf::before { left: -31px; }
+  .ticket .perf::after { right: -31px; }
+  .ticket .stub { padding: 16px 22px 12px; display: grid; gap: 8px; }
+  .ticket .stub .row1 { display: flex; gap: 12px; }
+  .ticket .stub .notch { width: 6px; background: var(--marigold); border-radius: 3px; }
+  .fake-btn { flex: 1; text-align: center; font-weight: 700; padding: 10px; border-radius: 10px; font-size: 15px; }
+  .fake-btn.primary { background: var(--line); color: #fff; }
+  .fake-btn.second { background: var(--rule); color: var(--ink); }
+  .fake-link { text-align: center; color: var(--ink-2); font-size: 13px; padding: 2px 0 4px; }
+  .pv-panel { --sky: var(--sky-2); background: var(--sky-2); border: 1.5px dashed var(--marigold); border-radius: 20px; padding: 12px 14px 18px; }
+  .pv-label { display: flex; align-items: baseline; gap: 10px; margin: 0 2px 12px; flex-wrap: wrap; }
+  .pv-label .tag { background: var(--marigold); color: var(--paper); font-size: 13px; font-weight: 700; padding: 2px 10px; border-radius: 999px; letter-spacing: .06em; }
+  .pv-label small { color: var(--ink-2); font-size: 13px; }
+  .form-title { font-family: var(--serif); font-weight: 900; font-size: 20px; margin: 30px 0 14px; padding-bottom: 8px; border-bottom: 1.5px solid var(--rule); }
+
+  /* ---------- 表單 ---------- */
+  .group { margin: 0 0 22px; }
+  .group h2 { font-size: 15px; font-weight: 700; margin: 0 0 8px; }
+  .field { display: block; margin-bottom: 10px; }
+  .field > span { display: block; font-size: 14px; color: var(--ink-2); margin-bottom: 4px; }
+  .field input, .field textarea { width: 100%; background: var(--paper); border: 1.5px solid var(--rule); border-radius: 12px; padding: 12px 14px; font-size: 16px; min-height: 50px; }
+  .field textarea { min-height: 96px; resize: vertical; }
+  .field input:focus, .field textarea:focus { outline: none; border-color: var(--ink); }
+  .help { font-size: 12px; color: var(--ink-2); margin-top: 4px; }
+  .url-row { display: flex; gap: 8px; }
+  .url-row input, .img-url { flex: 1; min-width: 0; width: 100%; background: var(--paper); border: 1.5px solid var(--rule); border-radius: 12px; padding: 12px 14px; font-size: 16px; min-height: 50px; }
+  .url-row input:focus, .img-url:focus { outline: none; border-color: var(--ink); }
+  .url-row .btn { width: auto; flex: none; padding: 0 16px; margin: 0; font-size: 15px; }
+  .meta-status { font-size: 13px; margin-top: 6px; color: var(--ink-2); min-height: 1.6em; }
+  .meta-status.ok { color: var(--gold-text); }
+  .meta-status.err { color: var(--stamp); }
+  .img-pick { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .img-pick .btn.small { margin: 0; }
+  .switch { display: flex; align-items: flex-start; gap: 12px; background: var(--paper); border: 1.5px solid var(--rule); border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; cursor: pointer; }
+  .switch input { width: 22px; height: 22px; margin: 2px 0 0; flex: none; accent-color: var(--ink); }
+  .switch b { display: block; font-size: 15px; }
+  .switch small { display: block; color: var(--ink-2); font-size: 13px; line-height: 1.5; }
+  .tone-pick { margin-top: 16px; padding-top: 14px; border-top: 1.5px dashed var(--marigold); }
+  .tone-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .tone-head h3 { margin: 0; font-size: 15px; }
+  .tones { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .tones button { border: 1.5px solid var(--rule); background: var(--paper); border-radius: 12px; padding: 9px 2px 7px; display: flex; flex-direction: column; align-items: center; gap: 5px; font-size: 13px; color: var(--ink); cursor: pointer; }
+  .tones i { width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg, var(--sw) 0 58%, var(--sw2) 58%); box-shadow: inset 0 0 0 2px rgba(255,255,255,.7); }
+  .tones button[aria-checked="true"] { border-color: var(--ink); box-shadow: 0 0 0 1.5px var(--ink); font-weight: 700; }
+
+  /* ---------- 按鈕 ---------- */
+  .dock { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--sky) 70%, rgba(250,246,238,0)); z-index: 5; }
+  .dock .inner { max-width: 480px; margin: 0 auto; display: grid; gap: 8px; }
+  .dock .inner.two { grid-template-columns: 1fr 1.4fr; }
+  .btn { display: block; width: 100%; border: 0; border-radius: 14px; padding: 15px; font-size: 17px; font-weight: 700; cursor: pointer; text-align: center; text-decoration: none; }
+  .btn.send { background: var(--line); color: var(--chrome-fg); box-shadow: 0 6px 16px -8px var(--line-dark); }
+  .btn.send:active { background: var(--line-dark); }
+  .btn.plain { background: var(--paper); color: var(--ink); border: 1.5px solid var(--rule); }
+  .btn.cancel { background: transparent; color: var(--stamp); border: 1.5px solid rgba(176, 58, 46, .35); }
+  .btn.cancel.armed { background: var(--stamp); color: #fff; border-color: var(--stamp); }
+  .btn.small { display: inline-block; width: auto; padding: 8px 14px; font-size: 14px; border-radius: 10px; }
+  .btn:disabled { opacity: .55; cursor: default; }
+  .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+
+  /* ---------- 我的圖卡 ---------- */
+  .stubs { display: grid; gap: 12px; }
+  .stub-card { background: var(--paper); border-radius: 14px; display: grid; grid-template-columns: 92px 1fr; overflow: hidden; border: 0; padding: 0; text-align: left; width: 100%; cursor: pointer; box-shadow: var(--shadow); }
+  .stub-card .thumb { width: 92px; height: 100%; min-height: 84px; object-fit: cover; background: var(--sky-2); display: grid; place-items: center; font-family: var(--serif); font-weight: 900; font-size: 30px; color: #fff; }
+  .stub-card .info { padding: 12px 14px; min-width: 0; }
+  .stub-card .t { font-family: var(--serif); font-weight: 900; font-size: 16px; line-height: 1.4; word-break: break-word; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .stub-card .d { color: var(--ink-2); font-size: 12px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .state { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 6px; background: var(--gold-soft); color: var(--gold-text); white-space: nowrap; margin-top: 6px; }
+  .state.none { background: var(--sky-2); color: var(--ink-2); }
+  .search { width: 100%; background: var(--paper); border: 1.5px solid var(--rule); border-radius: 12px; padding: 11px 14px; font-size: 16px; margin-bottom: 12px; }
+  .empty { text-align: center; color: var(--ink-2); padding: 40px 10px; }
+  .empty .btn { margin-top: 14px; }
+  .facts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 16px 0 6px; }
+  .fact { background: var(--paper); border-radius: 12px; padding: 10px 14px; min-width: 0; }
+  .fact.wide { grid-column: 1 / -1; }
+  .fact small { display: block; color: var(--ink-2); font-size: 12px; }
+  .fact span { font-weight: 700; word-break: break-all; }
+  .fact a { color: var(--ink); }
+  .note { color: var(--ink-2); font-size: 13px; margin: 8px 0 0; }
+
+  /* ---------- 單頁（轉傳、安裝說明、個人資料） ---------- */
+  .solo { padding-top: 32px; }
+  .result-msg { padding: 16px 22px 20px; }
+  .result-msg p { margin: 0; }
+  .result-msg .muted, .muted { color: var(--ink-2); font-size: 14px; margin-top: 4px; }
+  .install { text-align: center; padding-top: 48px; }
+  .app-icon { width: 96px; height: 96px; border-radius: 22px; box-shadow: var(--shadow); object-fit: cover; display: inline-grid; place-items: center; background: var(--chrome); color: var(--chrome-fg); font-family: var(--serif); font-weight: 900; font-size: 44px; }
+  .install h1 { font-family: var(--serif); font-weight: 900; font-size: 26px; margin: 14px 0 0; line-height: 1.35; word-break: break-word; }
+  .install .domain { color: var(--ink-2); font-size: 14px; margin: 2px 0 0; word-break: break-all; }
+  .install .btn { margin-top: 18px; }
+  .muted.small { font-size: 13px; margin-top: 10px; }
+  .install-steps { text-align: left; background: var(--paper); border-radius: 14px; padding: 14px 18px 14px 38px; margin: 18px 0 0; line-height: 1.9; box-shadow: var(--shadow); }
+  .install-steps .ico { display: inline-block; min-width: 1.6em; text-align: center; border: 1px solid var(--rule); border-radius: 6px; font-size: 13px; line-height: 1.5; padding: 0 4px; }
+  .os-switch { display: inline-flex; border: 1.5px solid var(--rule); border-radius: 999px; overflow: hidden; margin-top: 18px; }
+  .os-switch button { border: 0; background: transparent; padding: 6px 16px; font-size: 14px; color: var(--ink-2); cursor: pointer; }
+  .os-switch button[aria-pressed="true"] { background: var(--ink); color: #fff; font-weight: 700; }
+  .warn { background: #FBECEC; color: #8E1F27; font-size: 14px; padding: 10px 12px; border-radius: 10px; margin: 16px 0 0; text-align: left; }
+  .mydata-link { display: inline-block; margin: 22px auto 0; font-size: 13px; color: var(--ink-2); text-decoration: underline; text-underline-offset: 3px; }
+  .page-foot { display: flex; justify-content: center; gap: 18px; padding: 10px 0 0; }
+  dl.mydata { display: grid; grid-template-columns: 4em 1fr; gap: 6px 10px; margin: 0; }
+  dl.mydata dt { color: var(--ink-2); }
+  dl.mydata dd { margin: 0; word-break: break-all; }
+  .mydata-list { list-style: none; margin: 6px 0 0; padding: 0; }
+  .mydata-list li { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-top: 1px solid var(--rule); font-size: 14px; }
+  .mydata-list time { color: var(--ink-2); white-space: nowrap; }
+
+  .loading { text-align: center; color: var(--ink-2); padding: 80px 0; }
+  .loading .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--marigold); margin: 0 4px; animation: blink 1s infinite; }
+  .loading .dot:nth-child(2) { animation-delay: .15s; } .loading .dot:nth-child(3) { animation-delay: .3s; }
+  @keyframes blink { 0%, 100% { opacity: .2; } 50% { opacity: 1; } }
+  .toast { position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom)); transform: translate(-50%, 20px); background: var(--ink); color: var(--chrome-fg); padding: 11px 18px; border-radius: 12px; font-size: 15px; max-width: calc(100% - 32px); opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 10; }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  /* ---------- 使用教學（樣式取自聖經網站） ---------- */
+  .tour { position: fixed; inset: 0; z-index: 1000; opacity: 0; transition: opacity .22s; }
+  .tour.on { opacity: 1; }
+  .tour-catch { position: absolute; inset: 0; touch-action: none; }
+  .tour-hole { position: absolute; left: 0; top: 0; border-radius: 14px; pointer-events: none;
+    box-shadow: 0 0 0 2px var(--chrome), 0 0 0 5px var(--marigold), 0 0 0 200vmax rgba(16, 18, 28, .72);
+    transition: transform .32s cubic-bezier(.2,.8,.2,1), width .32s cubic-bezier(.2,.8,.2,1), height .32s cubic-bezier(.2,.8,.2,1); }
+  .tour-bubble { position: absolute; left: 0; top: 0; width: min(320px, calc(100vw - 24px)); background: var(--chrome); color: var(--chrome-fg);
+    border: 1px solid var(--marigold); border-radius: 16px; padding: 14px 16px 12px; box-shadow: 0 12px 36px rgba(0,0,0,.35); font-size: 15px; line-height: 1.6;
+    transition: transform .32s cubic-bezier(.2,.8,.2,1); }
+  .tour-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .tour-head h2 { margin: 0; font: 900 17px/1.4 var(--serif); color: #D9A466; letter-spacing: .04em; }
+  .tour-count { flex: none; font-size: 12px; font-weight: 700; color: var(--chrome-muted); font-variant-numeric: tabular-nums; }
+  .tour-bubble p { margin: 6px 0 12px; }
+  .tour-btns { display: flex; align-items: center; gap: 6px; }
+  .tour-btns button { min-height: 40px; padding: 0 12px; border: 0; border-radius: 99px; background: transparent; font-size: 15px; color: var(--chrome-fg); cursor: pointer; }
+  .tour-btns .tour-skip { color: var(--chrome-muted); padding-left: 4px; margin-right: auto; }
+  .tour-btns .tour-next { background: var(--marigold); color: var(--chrome); font-weight: 700; padding: 0 18px; }
+  .tour-btns button:disabled { opacity: .4; cursor: default; }
+  .notice { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(96px + env(safe-area-inset-bottom)); z-index: 20; width: min(440px, calc(100% - 24px));
+    display: flex; align-items: center; gap: 8px; background: var(--chrome); color: var(--chrome-fg); border: 1px solid var(--marigold); border-radius: 14px; padding: 10px 8px 10px 14px; box-shadow: 0 10px 28px rgba(0,0,0,.25); font-size: 14px; }
+  .notice span { flex: 1; }
+  .notice #notice-go { border: 0; background: var(--marigold); color: var(--chrome); font-weight: 700; border-radius: 99px; padding: 7px 14px; cursor: pointer; white-space: nowrap; }
+  .notice #notice-x { border: 0; background: transparent; color: var(--chrome-muted); font-size: 20px; width: 32px; cursor: pointer; }
+  @media (prefers-reduced-motion: reduce) {
+    .tour, .tour-hole, .tour-bubble, .toast { transition: none; }
+    .loading .dot { animation: none; }
+  }
+</style>
+</head>
+<body>
+<main id="app"><div class="loading" role="status"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div></main>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="notice" id="notice" role="status" hidden><span id="notice-text"></span><button type="button" id="notice-go"></button><button type="button" id="notice-x" aria-label="關閉">×</button></div>
+
+<script>
+/* ======== 只需要改這兩行 ======== */
+const LIFF_ID = '請填 LIFF ID';
+const GAS_URL = '請填 Apps Script 網址';
+/* ================================ */
+/** 自己的網站：網址加上 ?install=1 時，網站本身會跳出安裝提示，所以「加到主畫面」直接前往網站 */
+// 原文對照聖經上線 ?install=1 後，加入 'isaiahovercomer.github.io/interlinear-bible/'
+const OWN_HOSTS = [];
+
+const PARAMS = new URLSearchParams(location.search);
+const DEMO = LIFF_ID.startsWith('請填') || PARAMS.has('demo');
+const $app = document.getElementById('app');
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+const view = html => { $app.innerHTML = html; window.scrollTo(0, 0); };
+const loading = () => `<div class="loading" role="status"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>`;
+const isHttps = u => /^https:\/\/\S+$/.test(u || '');
+const BASE = location.origin + location.pathname;
+
+let toastTimer;
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+/* ---------- 網址工具 ---------- */
+/** 使用者貼的網址：沒有 https:// 就補上 */
+function normUrl(u) {
+  u = String(u || '').trim();
+  if (!u) return '';
+  if (!/^https?:\/\//i.test(u)) u = 'https://' + u.replace(/^\/+/, '');
+  try { const x = new URL(u); return /\./.test(x.hostname) ? x.href : ''; } catch (e) { return ''; }
+}
+const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return ''; } };
+/** 在網址加上參數（放在 # 前面） */
+function withParam(u, k, v) {
+  try { const x = new URL(u); x.searchParams.set(k, v); return x.href; } catch (e) { return u; }
+}
+const isOwnSite = u => { try { const x = new URL(u); return OWN_HOSTS.some(p => (x.hostname + x.pathname).startsWith(p)); } catch (e) { return false; } };
+/** 「開啟網頁」：LINE 加上 openExternalBrowser=1 會改用手機的瀏覽器開，才能加到主畫面、記住登入 */
+const openUrl = c => c.external ? withParam(c.url, 'openExternalBrowser', '1') : c.url;
+/** 「加到手機主畫面」：自己的網站直接開 ?install=1；其他網站先到本平台的安裝說明頁 */
+function addUrl(c) {
+  if (isOwnSite(c.url)) return withParam(withParam(c.url, 'install', '1'), 'openExternalBrowser', '1');
+  const p = new URLSearchParams({ add: c.url, t: c.title });
+  if (isHttps(c.icon)) p.set('ic', c.icon);
+  p.set('openExternalBrowser', '1');
+  return `${BASE}?${p}`;
+}
+const shareUrl = id => `https://liff.line.me/${LIFF_ID}?share=${encodeURIComponent(id)}`;
+
+/* ================= 預覽模式用的假資料 ================= */
+const demo = {
+  me: { userId: 'Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', displayName: '預覽使用者', isAdmin: true },
+  cards: [
+    { id: 'L1', title: '原文對照聖經', url: 'https://isaiahovercomer.github.io/interlinear-bible/', desc: '可離線使用的希臘文／希伯來文原文對照聖經', image: 'https://isaiahovercomer.github.io/interlinear-bible/icons/og-image.png', icon: '', button: '開啟網頁', install: true, external: true, theme: 'classic', created: '2026/11/9 21:30', sent: 3, last: '2026/11/10 08:12', creator: '簡晨光', mine: true },
+    { id: 'L2', title: 'LINE簡易活動登記建立平台', url: 'https://isaiahovercomer.github.io/line-signup/', desc: '建立活動登記圖卡、發到 LINE 群組、看登記名單與統計。', image: '', icon: 'https://isaiahovercomer.github.io/line-signup/icons/apple-touch-icon.png', button: '開啟平台', install: true, external: true, theme: 'gospel', created: '2026/11/8 10:02', sent: 0, last: '', creator: '王小明', mine: false },
+  ],
+};
+if (DEMO) window.liff = { isInClient: () => false, closeWindow() {}, isApiAvailable: () => false, getContext: () => null, isLoggedIn: () => true };
+
+async function demoApi(action, d) {
+  await new Promise(r => setTimeout(r, 300));
+  const find = id => demo.cards.find(c => c.id === id);
+  switch (action) {
+    case 'me': return { ok: true, ...demo.me };
+    case 'card': return { ok: true, card: find(d.cardId) || demo.cards[0] };
+    case 'listCards': return { ok: true, cards: demo.cards };
+    case 'fetchMeta': {
+      const url = normUrl(d.url);
+      if (!url) throw new Error('網址格式不對，請貼完整的網址');
+      if (/interlinear-bible/.test(url)) return { ok: true, meta: { url, title: '原文對照聖經', desc: '可離線使用的希臘文／希伯來文原文對照聖經', image: 'https://isaiahovercomer.github.io/interlinear-bible/icons/og-image.png', icon: '', pwa: true } };
+      return { ok: true, meta: { url, title: hostOf(url), desc: '', image: '', icon: '', pwa: false } };
+    }
+    case 'createCard': { const c = { ...d.card, id: 'L' + Date.now(), created: '剛剛', sent: 0, last: '', creator: demo.me.displayName, mine: true }; demo.cards.unshift(c); return { ok: true, card: c }; }
+    case 'updateCard': { const c = find(d.cardId); Object.assign(c, d.card); return { ok: true, card: c }; }
+    case 'markSent': { const c = find(d.cardId); c.sent++; c.last = '剛剛'; return { ok: true, card: c }; }
+    case 'deleteCards': { const n = demo.cards.length; demo.cards = demo.cards.filter(c => !d.cardIds.includes(c.id)); return { ok: true, removed: n - demo.cards.length }; }
+    case 'myData': return { ok: true, found: true, lineName: '簡晨光 Isaiah Chien', cards: demo.cards.filter(c => c.mine).map(c => ({ title: c.title, time: c.created })) };
+    case 'deleteMyData': return { ok: true, cards: 1 };
+  }
+}
+
+/* ---------- 平台通行證：登入一次，60 天內不用再登入 ---------- */
+const SESSION_KEY = 'linkcard.session';
+const DRAFT_KEY = 'linkcard.draft';
+const CACHE_KEY = 'linkcard.cache';
+const getSession = () => { try { const s = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); return s && s.expires > Date.now() + 60000 ? s : null; } catch (e) { return null; } };
+const setSession = s => { try { s ? localStorage.setItem(SESSION_KEY, JSON.stringify({ token: s.token, expires: s.expires })) : (localStorage.removeItem(SESSION_KEY), localStorage.removeItem(CACHE_KEY)); } catch (e) {} };
+const readCache = () => { try { return JSON.parse(localStorage.getItem(CACHE_KEY) || 'null'); } catch (e) { return null; } };
+const writeCache = () => { if (DEMO) return; try { localStorage.setItem(CACHE_KEY, JSON.stringify({ me: ME, cards: CARDS })); } catch (e) {} };
+
+async function api(action, data = {}) {
+  if (DEMO) return demoApi(action, data);
+  const body = { action, ...data };
+  if (action !== 'card') {
+    const s = action === 'session' ? null : getSession();
+    if (s) body.session = s.token; else body.idToken = liff.getIDToken();
+  }
+  const r = await fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) });
+  const j = await r.json();
+  if (!j.ok) {
+    if (j.error === 'SESSION_EXPIRED') {
+      setSession(null);
+      if (liff.isLoggedIn()) return api(action, data);
+      liff.login({ redirectUri: location.href }); throw new Error('登入已過期，正在重新登入');
+    }
+    if (j.error === 'TOKEN_EXPIRED') { liff.logout(); liff.login({ redirectUri: location.href }); throw new Error('登入已過期，正在重新登入'); }
+    throw new Error(j.error);
+  }
+  return j;
+}
+
+/* ================= 入口 ================= */
+let ME = null, CARDS = [], TAB = 'new', ROUTE = { view: 'tabs' };
+let BOOT = null;
+
+async function main() {
+  try {
+    if (PARAMS.has('add')) return addFlow();          // 加到主畫面說明頁：不用登入，在手機瀏覽器開
+    if (PARAMS.has('install')) return installFlow();  // 把平台本身裝到手機桌面
+    const platform = !PARAMS.has('share') && !PARAMS.has('mydata');
+    if (platform && (DEMO || getSession())) BOOT = Promise.all([api('me'), api('listCards')]);
+    if (!DEMO) {
+      await liff.init({ liffId: LIFF_ID });
+      if (!liff.isLoggedIn() && !getSession()) { liff.login({ redirectUri: location.href }); return; }
+      if (liff.isLoggedIn() && !getSession()) { try { setSession(await api('session')); } catch (e) {} }
+    }
+    if (PARAMS.has('mydata')) await myDataFlow();
+    else if (PARAMS.has('share')) await forwardFlow(PARAMS.get('share'));
+    else await publisherFlow();
+  } catch (e) {
+    view(`<section class="solo">${ticket({ title: '無法開啟' }, `<div class="result-msg"><p>${esc(e.message)}</p><p class="muted">請關閉後從 LINE 重新開啟一次。</p></div>`)}</section>`);
+  }
+}
+
+/* ================= 圖卡色調（跟活動登記平台相同） ================= */
+const THEMES = {
+  classic: { name: '經典',     btn: '#2F3343', notch: '#C49356', paper: '#FFFDF8', ink: '#2F3343', muted: '#67645F', line: '#E4DCCC' },
+  feast:   { name: '愛筵聚餐', btn: '#9A3B26', notch: '#E0A458', paper: '#FFF8F1', ink: '#3A2A22', muted: '#7A6457', line: '#EEDCCB' },
+  prayer:  { name: '禱告',     btn: '#2B4C7E', notch: '#9DB4D3', paper: '#F6F8FC', ink: '#1F2D44', muted: '#5D6B80', line: '#D9E1EE' },
+  gospel:  { name: '福音開展', btn: '#2E6B4F', notch: '#A8C686', paper: '#F6FAF4', ink: '#1F3A2D', muted: '#5B6E62', line: '#D7E5D4' },
+  youth:   { name: '青年',     btn: '#6B3FA0', notch: '#F2B84B', paper: '#FBF8FF', ink: '#2E2240', muted: '#6C6280', line: '#E4DCF0' },
+  kids:    { name: '兒童',     btn: '#B4470F', notch: '#F4C542', paper: '#FFFBEF', ink: '#3B2A12', muted: '#7A6A50', line: '#F0E2C2' },
+  study:   { name: '讀經成全', btn: '#5B4636', notch: '#C9A66B', paper: '#FAF6EF', ink: '#33281F', muted: '#6F6255', line: '#E6DCCB' },
+  service: { name: '服事',     btn: '#1F6F78', notch: '#8FC1C7', paper: '#F4FAFA', ink: '#173B40', muted: '#587073', line: '#D3E6E8' },
+};
+const themeOf = c => THEMES[c && c.theme] || THEMES.classic;
+const randomTheme = not => { const ids = Object.keys(THEMES).filter(k => k !== not); return ids[Math.floor(Math.random() * ids.length)]; };
+const themeVars = t => `--paper:${t.paper};--line:${t.btn};--marigold:${t.notch};--ink:${t.ink};--ink-2:${t.muted};--rule:${t.line}`;
+
+/** 平台上的圖卡樣子；stubHtml 是下半部 */
+function ticket(c, stubHtml, extra = '') {
+  const host = hostOf(c.url);
+  return `<article class="ticket" style="${themeVars(themeOf(c))}">
+    ${extra}
+    ${/^(https:|data:image\/)/.test(c.image || '') ? `<img class="hero" src="${esc(c.image)}" alt="" onerror="this.remove()">` : ''}
+    <div class="main">
+      ${host ? `<p class="site">🔗 ${esc(host)}</p>` : ''}
+      <h2 class="title ${c.title ? '' : 'empty'}">${esc(c.title || '標題')}</h2>
+      ${c.desc ? `<p class="desc">${esc(c.desc)}</p>` : ''}
+    </div>
+    ${stubHtml ? `<div class="perf" aria-hidden="true"></div>${stubHtml}` : ''}
+  </article>`;
+}
+/** 圖卡下半部的按鈕（預覽用，不能點） */
+const fakeButtons = c => `<div class="stub">
+  <div class="row1"><span class="notch"></span><span class="fake-btn primary">${esc((c.button || '').trim() || '開啟網頁')}</span></div>
+  ${c.install ? `<div class="row1"><span class="notch" style="visibility:hidden"></span><span class="fake-btn second">📲 加到手機主畫面</span></div>` : ''}
+  <div class="fake-link">轉傳給其他群組或朋友</div>
+</div>`;
+
+/* ================= 加到手機主畫面：說明頁（在手機瀏覽器開） ================= */
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isAndroid = () => /android/i.test(navigator.userAgent);
+const inLineApp = () => /\bLine\//i.test(navigator.userAgent);
+const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+
+function addFlow() {
+  const url = normUrl(PARAMS.get('add'));
+  if (!url) { view(`<section class="solo install"><h1>網址不完整</h1><p class="muted">請回到 LINE 重新點一次圖卡上的按鈕。</p></section>`); return; }
+  const title = (PARAMS.get('t') || hostOf(url)).slice(0, 80);
+  const icon = isHttps(PARAMS.get('ic')) ? PARAMS.get('ic') : '';
+  document.title = `把「${title}」加到主畫面`;
+  let os = isIOS() ? 'ios' : 'android';
+  const steps = () => os === 'ios'
+    ? `<ol class="install-steps">
+        <li>按下面的「前往網站」</li>
+        <li>點畫面下方的「分享」<span class="ico" aria-hidden="true">⬆︎</span>（iPad 在右上角）</li>
+        <li>往下滑，點「<b>加入主畫面</b>」</li>
+        <li>按右上角「<b>新增</b>」，主畫面就會出現圖示</li>
+      </ol><p class="muted small">建議用 <b>Safari</b> 開啟；Chrome 也可以，在網址列右邊的「分享」找「加入主畫面」。</p>`
+    : `<ol class="install-steps">
+        <li>按下面的「前往網站」</li>
+        <li>如果網站跳出「<b>安裝</b>」提示，按「安裝」就完成了</li>
+        <li>沒有跳出：點瀏覽器右上角的 <span class="ico" aria-hidden="true">⋮</span></li>
+        <li>選「<b>加到主畫面</b>」或「<b>安裝應用程式</b>」，再按「新增」</li>
+      </ol>`;
+  const draw = () => {
+    view(`<section class="solo install">
+      ${icon ? `<img class="app-icon" src="${esc(icon)}" alt="" data-ch="${esc(title.charAt(0))}" onerror="this.replaceWith(Object.assign(document.createElement('span'), { className: 'app-icon', textContent: this.dataset.ch }))">` : `<span class="app-icon" aria-hidden="true">${esc(title.charAt(0))}</span>`}
+      <h1>${esc(title)}</h1>
+      <p class="domain">${esc(hostOf(url))}</p>
+      <p class="muted">把這個網站加到手機主畫面，以後像 App 一樣一點就開。</p>
+      ${inLineApp() ? `<p class="warn">現在是在 LINE 裡面開啟，沒辦法加到主畫面。請點右上角「⋯」，選「<b>用預設瀏覽器開啟</b>」，或按下面的「前往網站」。</p>` : ''}
+      <div class="os-switch" role="group" aria-label="手機系統">
+        <button type="button" data-os="ios" aria-pressed="${os === 'ios'}">iPhone</button>
+        <button type="button" data-os="android" aria-pressed="${os === 'android'}">Android</button>
+      </div>
+      ${steps()}
+      <a class="btn send" id="go-site" href="${esc(url)}" rel="noopener">前往網站</a>
+      <button class="btn plain" id="copy-url" style="margin-top:10px">複製網址</button>
+    </section>`);
+    document.querySelectorAll('[data-os]').forEach(b => b.onclick = () => { os = b.dataset.os; draw(); });
+    $('copy-url').onclick = () => copyText(url, '已複製網址');
+  };
+  draw();
+}
+
+/* ================= 把平台本身裝到手機桌面（PWA） ================= */
+let installPrompt = null;
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; });
+function startInstall() {
+  if (!DEMO && liff.isInClient && liff.isInClient()) { liff.openWindow({ url: `${BASE}?install=1`, external: true }); return; }
+  installFlow();
+}
+function installFlow() {
+  document.title = '安裝「網頁圖卡」';
+  const steps = isIOS()
+    ? `<ol class="install-steps"><li>用 <b>Safari</b> 開啟這個頁面</li><li>點下方的「分享」按鈕 <span class="ico" aria-hidden="true">⬆︎</span></li><li>往下滑，點「<b>加入主畫面</b>」</li><li>按右上角「新增」</li></ol>`
+    : `<ol class="install-steps"><li>點上面的「安裝到手機桌面」</li><li>如果沒有反應：點瀏覽器右上角「⋮」選單</li><li>選「<b>安裝應用程式</b>」或「<b>加到主畫面</b>」</li></ol>`;
+  view(`<section class="solo install">
+    <img class="app-icon" src="icons/icon-192.png" alt="" width="96" height="96">
+    <h1>網頁圖卡</h1>
+    <p class="muted">把「LINE網頁圖卡分享建立平台」放到手機桌面，像 App 一樣一點就開。</p>
+    ${isStandalone() ? '<p class="muted">已經安裝好了，從桌面的圖示打開即可。</p>' : `
+      <button class="btn send" id="do-install" ${isIOS() ? 'hidden' : ''}>安裝到手機桌面</button>
+      ${steps}`}
+    <p class="muted small">第一次從桌面打開時，會請你用 LINE 帳號登入一次。</p>
+    <button class="btn plain" id="go-platform" style="margin-top:14px">前往平台</button>
+  </section>`);
+  const btn = $('do-install');
+  if (btn) btn.onclick = async () => {
+    if (!installPrompt) { toast('請依照下面的步驟，從瀏覽器選單安裝'); return; }
+    installPrompt.prompt();
+    const r = await installPrompt.userChoice.catch(() => null);
+    installPrompt = null;
+    toast(r && r.outcome === 'accepted' ? '安裝完成，可以從桌面打開了' : '已取消安裝');
+  };
+  $('go-platform').onclick = () => { location.href = `${BASE}?pwa=1`; };
+}
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
+
+/* ================= 轉傳圖卡給其他群組或朋友 ================= */
+async function forwardFlow(id) {
+  view(loading());
+  const { card } = await api('card', { cardId: id });
+  if (!card) throw new Error('找不到這張圖卡，可能已經被刪除');
+  document.title = card.title;
+  view(`<section class="solo">
+    ${ticket(card, `<div class="result-msg"><p>把這張圖卡轉傳給其他群組或朋友。</p><p class="muted">可以一次勾選好幾個。</p></div>`)}
+    <button class="btn send" style="margin-top:18px" id="go">選擇群組或朋友</button>
+    <a class="btn plain" style="margin-top:10px" href="${esc(card.url)}" target="_blank" rel="noopener">直接開啟網頁</a>
+    ${liff.isInClient() ? `<button class="btn plain" style="margin-top:10px" onclick="liff.closeWindow()">回到聊天室</button>` : ''}
+  </section>`);
+  $('go').onclick = async () => { if (await share(card) && liff.isInClient()) liff.closeWindow(); };
+}
+
+/* ================= 我的個人資料 ================= */
+const myDataLink = () => `<a class="mydata-link" href="#" id="mydata-link">我的個人資料</a>`;
+const bindMyDataLink = () => { if ($('mydata-link')) $('mydata-link').onclick = e => { e.preventDefault(); myDataFlow(); }; };
+async function myDataFlow() {
+  view(loading());
+  document.title = '我的個人資料';
+  const d = await api('myData');
+  const back = `<button class="btn plain" style="margin-top:12px" id="md-back">回到平台</button>`;
+  view(`<section class="solo">
+    ${ticket({ title: '我的個人資料' }, `<div class="result-msg">
+      <dl class="mydata"><dt>LINE</dt><dd>${esc(d.lineName || '')}</dd></dl>
+      <p class="muted" style="margin-top:10px">系統只存你建立的圖卡（標題、網址、說明、圖片）和建立者名稱，不存手機或其他個資。</p>
+      ${d.cards.length ? `<p style="margin-top:12px"><b>你建立的圖卡（${d.cards.length}）</b></p><ul class="mydata-list">${d.cards.map(c => `<li><span>${esc(c.title)}</span><time>${esc(c.time)}</time></li>`).join('')}</ul>` : '<p class="muted" style="margin-top:12px">你還沒有建立過圖卡。</p>'}
+    </div>`)}
+    <button class="btn cancel" style="margin-top:18px" id="md-del">刪除我的所有資料</button>
+    ${back}
+  </section>`);
+  $('md-back').onclick = () => { history.replaceState(null, '', BASE); publisherFlow(); };
+  $('md-del').onclick = () => armThen($('md-del'), '確定刪除？已發到群組的圖卡不受影響，再按一次', async () => {
+    const r = await api('deleteMyData');
+    setSession(null);
+    view(`<section class="solo">${ticket({ title: '已刪除你的資料' }, `<div class="result-msg"><p>已刪除 ${r.cards} 張圖卡紀錄和登入通行證。</p><p class="muted">已經發到群組的圖卡不會消失，但「轉傳」連結會失效。</p></div>`)}</section>`);
+  });
+}
+
+/* ================= 發布者平台 ================= */
+const blankDraft = () => ({ url: '', title: '', desc: '', image: '', icon: '', button: '開啟網頁', install: true, external: true, theme: randomTheme(), auto: {} });
+let draft = blankDraft();
+let EDIT = null; // 正在編輯的圖卡
+
+async function publisherFlow() {
+  const restoreDraft = () => { try { const saved = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); if (saved) { draft = { ...blankDraft(), ...saved }; localStorage.removeItem(DRAFT_KEY); setTimeout(() => toast('已登入，內容都還在，按「發送到 LINE 群組」繼續'), 300); } } catch (e) {} };
+  if (!BOOT) BOOT = Promise.all([api('me'), api('listCards')]);
+  const cache = readCache();
+  if (cache && cache.me && !DEMO) {
+    ME = cache.me; CARDS = cache.cards || [];
+    restoreDraft(); render(); maybeStartTour();
+    BOOT.then(([me, r]) => { const switched = me.userId !== ME.userId || me.isAdmin !== ME.isAdmin; ME = me; CARDS = r.cards; writeCache(); if (switched || TAB === 'sent' && ROUTE.view === 'tabs') render(); else updateCount(); }).catch(e => toast(e.message));
+    return;
+  }
+  view(loading());
+  const [me, r] = await BOOT;
+  ME = me; CARDS = r.cards; writeCache();
+  restoreDraft(); render();
+  if (!PARAMS.has('notour')) maybeStartTour();
+}
+const updateCount = () => { const n = document.querySelector('[data-tab=sent] .n'); if (n) n.textContent = CARDS.length; };
+async function refreshCards() { try { CARDS = (await api('listCards')).cards; writeCache(); } catch (e) { toast(e.message); } }
+
+function copyText(text, done) {
+  (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(() => toast(done), () => toast('無法複製，請長按文字自行複製'));
+}
+function armThen(btn, label, fn) {
+  if (!btn.classList.contains('armed')) {
+    const old = btn.textContent;
+    btn.classList.add('armed'); btn.textContent = label;
+    setTimeout(() => { if (btn.isConnected && !btn.disabled) { btn.classList.remove('armed'); btn.textContent = old; } }, 3500);
+    return;
+  }
+  btn.disabled = true;
+  fn().catch(e => { toast(e.message); btn.disabled = false; btn.classList.remove('armed'); });
+}
+
+function go(route) { ROUTE = route; render(); }
+
+function render() {
+  if (ROUTE.view === 'detail') return renderDetail(ROUTE.id);
+  if (ROUTE.view === 'edit') return renderEdit(ROUTE.id);
+  const dock = TAB === 'new' ? `<div class="dock"><div class="inner"><button class="btn send" id="send">發送到 LINE 群組</button></div></div>` : '';
+  view(`
+    <header class="top"><div class="brand"><img class="logo" src="img/in-christ.svg" alt="IN CHRIST 標誌" width="44" height="44"><h1>建立網頁圖卡</h1></div><button class="help" id="help" type="button" aria-label="使用教學">?</button></header>
+    ${DEMO ? `<p class="demo-note">預覽模式：目前使用範例資料。</p>` : ''}
+    <nav class="tabs" role="tablist">
+      <button role="tab" aria-selected="${TAB === 'new'}" data-tab="new">新圖卡</button>
+      <button role="tab" aria-selected="${TAB === 'sent'}" data-tab="sent">我的圖卡<span class="n">${CARDS.length}</span></button>
+    </nav>
+    <div id="panel"></div>
+    <footer class="page-foot">${isStandalone() ? '' : '<a class="mydata-link" href="#" id="install-link">安裝到手機桌面</a>'}${myDataLink()}</footer>
+    ${dock}`);
+  document.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { TAB = b.dataset.tab; render(); });
+  $('help').onclick = () => startTour(TOUR_STEPS);
+  if ($('install-link')) $('install-link').onclick = e => { e.preventDefault(); startInstall(); };
+  bindMyDataLink();
+  if (TAB === 'new') renderCompose(); else renderSent();
+}
+
+/* ---------- 圖卡表單（新增與編輯共用） ---------- */
+function cardForm(d) {
+  const f = (k, label, attrs = '', help = '') => `<label class="field"><span>${label}</span><input data-k="${k}" value="${esc(d[k])}" ${attrs}>${help ? `<div class="help">${help}</div>` : ''}</label>`;
+  return `
+    <section class="pv-panel" aria-label="圖卡預覽">
+      <div class="pv-label"><span class="tag">圖卡預覽</span><small>群組裡的人會看到這張圖卡</small></div>
+      <div id="pv"></div>
+      <div class="tone-pick">
+        <div class="tone-head"><h3>圖卡色調</h3><button type="button" class="btn plain small" id="tone-random">隨機換一個</button></div>
+        <div class="tones" role="radiogroup" aria-label="圖卡色調">
+          ${Object.entries(THEMES).map(([id, t]) => `<button type="button" role="radio" aria-checked="${d.theme === id}" data-tone="${id}" style="--sw:${t.btn};--sw2:${t.notch}"><i aria-hidden="true"></i><span>${t.name}</span></button>`).join('')}
+        </div>
+      </div>
+    </section>
+    <h2 class="form-title">填寫圖卡內容</h2>
+    <div class="group" id="url-group"><h2>網址</h2>
+      <div class="url-row">
+        <input data-k="url" type="url" inputmode="url" autocomplete="off" value="${esc(d.url)}" placeholder="https://" aria-label="網址">
+        <button type="button" class="btn plain" id="fetch-meta">讀取</button>
+      </div>
+      <div class="meta-status" id="meta-status" role="status">貼上網址後，會自動帶入網頁的標題、說明和預覽圖。</div>
+    </div>
+    <div class="group"><h2>標題與說明</h2>
+      ${f('title', '標題', 'maxlength="80" placeholder="例如：原文對照聖經"')}
+      <label class="field"><span>想說的話</span><textarea data-k="desc" maxlength="300" placeholder="例如：可以離線查原文，推薦給大家">${esc(d.desc)}</textarea><div class="help">選填，最多 300 字。</div></label>
+    </div>
+    <div class="group" id="img-group"><h2>預覽圖</h2>
+      <div class="img-pick">
+        <label class="btn plain small">上傳圖片<input type="file" accept="image/*" id="img-file" hidden></label>
+        <button type="button" class="btn plain small" id="img-site" hidden>用網頁的預覽圖</button>
+        <button type="button" class="btn plain small" id="img-clear" ${d.image ? '' : 'hidden'}>不要圖片</button>
+        <span class="help" id="img-status"></span>
+      </div>
+      <input class="img-url" data-k="image" type="url" inputmode="url" value="${esc(/^data:/.test(d.image) ? '' : d.image)}" placeholder="或貼上圖片網址 https://">
+      <div class="help">建議橫式圖片（約 1200×630）。</div>
+    </div>
+    <div class="group" id="btn-group"><h2>按鈕</h2>
+      ${f('button', '按鈕文字', 'maxlength="20" placeholder="開啟網頁"')}
+      <label class="switch"><input type="checkbox" data-c="install" ${d.install ? 'checked' : ''}><span><b>加上「加到手機主畫面」按鈕</b><small>點了會用手機瀏覽器打開，並一步步教怎麼把網站放到主畫面。</small></span></label>
+      <label class="switch"><input type="checkbox" data-c="external" ${d.external ? 'checked' : ''}><span><b>用手機的瀏覽器開啟網頁</b><small>建議勾選。不勾的話會在 LINE 裡面開，無法加到主畫面，也不會記住網站的登入或設定。</small></span></label>
+    </div>`;
+}
+
+let metaSeq = 0;
+/** 讀取網頁資訊：只填使用者還沒自己改過的欄位 */
+async function loadMeta(d, force) {
+  const url = normUrl(d.url);
+  const st = $('meta-status');
+  if (!url) { if (force) { st.className = 'meta-status err'; st.textContent = '網址格式不對，請貼完整的網址'; } return; }
+  if (!force && d.auto.url === url) return;
+  const seq = ++metaSeq;
+  st.className = 'meta-status'; st.textContent = '正在讀取網頁…';
+  $('fetch-meta').disabled = true;
+  try {
+    const { meta } = await api('fetchMeta', { url });
+    if (seq !== metaSeq) return;
+    const a = d.auto;
+    const fill = (k, v) => { if (v && (!d[k] || d[k] === a[k])) d[k] = v; a[k] = v; };
+    fill('title', meta.title); fill('desc', meta.desc);
+    if (meta.image && (!d.image || d.image === a.image)) d.image = meta.image;
+    a.image = meta.image; a.url = url;
+    d.icon = meta.icon || '';
+    d.url = meta.url || url;
+    ['url', 'title', 'desc'].forEach(k => { const el = document.querySelector(`[data-k=${k}]`); if (el) el.value = d[k]; });
+    syncImage(d);
+    const got = [meta.title && '標題', meta.desc && '說明', meta.image && '預覽圖'].filter(Boolean);
+    st.className = 'meta-status ok';
+    st.textContent = got.length ? `已帶入網頁的${got.join('、')}，可以再修改。` : '這個網頁沒有提供標題或預覽圖，請自己填寫。';
+    if (!meta.image) st.textContent += ' 沒有預覽圖，可以上傳一張。';
+  } catch (e) {
+    if (seq !== metaSeq) return;
+    st.className = 'meta-status err'; st.textContent = e.message;
+  } finally {
+    if (seq === metaSeq) $('fetch-meta').disabled = false;
+  }
+  preview(d);
+}
+
+function syncImage(d) {
+  const el = document.querySelector('[data-k=image]');
+  if (el) el.value = /^data:/.test(d.image) ? '' : d.image;
+  $('img-clear').hidden = !d.image;
+  $('img-site').hidden = !d.auto.image || d.image === d.auto.image;
+}
+
+function bindCardForm(d) {
+  document.querySelectorAll('[data-k]').forEach(el => el.addEventListener('input', () => {
+    d[el.dataset.k] = el.value;
+    if (el.dataset.k === 'image') syncImage(d);
+    preview(d);
+  }));
+  const urlEl = document.querySelector('[data-k=url]');
+  urlEl.addEventListener('paste', () => setTimeout(() => { d.url = urlEl.value; loadMeta(d); }, 0));
+  urlEl.addEventListener('change', () => loadMeta(d));
+  urlEl.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); loadMeta(d, true); } });
+  $('fetch-meta').onclick = () => loadMeta(d, true);
+  document.querySelectorAll('[data-c]').forEach(el => el.onchange = () => { d[el.dataset.c] = el.checked; preview(d); });
+  $('img-file').onchange = e => uploadPicked(e.target, d);
+  $('img-clear').onclick = () => { d.image = ''; syncImage(d); preview(d); };
+  $('img-site').onclick = () => { d.image = d.auto.image; syncImage(d); preview(d); };
+  const setTone = id => { d.theme = id; document.querySelectorAll('[data-tone]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.tone === id))); preview(d); };
+  document.querySelectorAll('[data-tone]').forEach(b => b.onclick = () => setTone(b.dataset.tone));
+  $('tone-random').onclick = () => setTone(randomTheme(d.theme));
+  syncImage(d);
+  preview(d);
+}
+
+async function uploadPicked(input, d) {
+  const file = input.files && input.files[0];
+  input.value = '';
+  if (!file) return;
+  const status = $('img-status');
+  status.textContent = '上傳中…';
+  try {
+    const dataUrl = await shrinkImage(file, 1200, 0.85);
+    d.image = DEMO ? dataUrl : (await api('uploadImage', { data: dataUrl, mime: 'image/jpeg' })).url;
+    syncImage(d);
+    status.textContent = '已上傳';
+    preview(d);
+  } catch (e) { status.textContent = ''; toast('上傳失敗：' + e.message); }
+}
+
+function shrinkImage(file, maxW, quality) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, maxW / img.naturalWidth);
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.naturalWidth * scale); c.height = Math.round(img.naturalHeight * scale);
+      const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+      g.drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(img.src);
+      resolve(c.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => reject(new Error('無法讀取這張圖片'));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+function preview(d) {
+  const url = normUrl(d.url);
+  $('pv').innerHTML = ticket({ ...d, url, title: d.title.trim() }, fakeButtons(d));
+}
+
+const toPayload = d => ({ url: normUrl(d.url), title: d.title.trim(), desc: d.desc.trim(), image: d.image, icon: d.icon, button: d.button.trim() || '開啟網頁', install: !!d.install, external: !!d.external, theme: d.theme });
+/** 檢查必填；有問題回傳要提示的文字 */
+function formProblem(d) {
+  if (!normUrl(d.url)) { document.querySelector('[data-k=url]').focus(); return '請先貼上網址'; }
+  if (!d.title.trim()) { document.querySelector('[data-k=title]').focus(); return '請填標題'; }
+  if (/^data:/.test(d.image)) return '圖片還沒上傳完成，請稍等';
+  return '';
+}
+/** 在 LINE 外面發送到群組，要先登入 LINE；先把填好的內容存起來 */
+function needLogin(d) {
+  if (DEMO || liff.isLoggedIn()) return false;
+  if (d) try { localStorage.setItem(DRAFT_KEY, JSON.stringify(d)); } catch (e) {}
+  toast('發送到群組前需要登入 LINE 一次');
+  setTimeout(() => liff.login({ redirectUri: location.href }), 600);
+  return true;
+}
+
+function renderCompose() {
+  $('panel').innerHTML = cardForm(draft);
+  bindCardForm(draft);
+  $('send').onclick = createAndSend;
+}
+
+async function createAndSend() {
+  const p = formProblem(draft); if (p) { toast(p); return; }
+  if (needLogin(draft)) return;
+  const btn = $('send');
+  btn.disabled = true; btn.textContent = '建立中';
+  try {
+    const { card } = await api('createCard', { card: toPayload(draft) });
+    btn.textContent = '選擇群組';
+    if (await share(card)) await api('markSent', { cardId: card.id }).catch(() => {});
+    draft = blankDraft();
+    await refreshCards();
+    TAB = 'sent'; go({ view: 'detail', id: card.id });
+  } catch (e) { toast(e.message); btn.disabled = false; btn.textContent = '發送到 LINE 群組'; }
+}
+
+/* ---------- 我的圖卡 ---------- */
+let QUERY = '';
+function renderSent() {
+  const panel = $('panel');
+  if (!CARDS.length) {
+    panel.innerHTML = `<div class="empty"><p>還沒有建立過圖卡。</p><button class="btn send" id="go-new">建立第一張圖卡</button></div>`;
+    $('go-new').onclick = () => { TAB = 'new'; render(); };
+    return;
+  }
+  panel.innerHTML = `${CARDS.length > 5 ? `<input class="search" id="q" type="search" placeholder="搜尋標題或網址" value="${esc(QUERY)}">` : ''}<div class="stubs" id="stubs"></div>`;
+  const draw = () => {
+    const q = QUERY.trim().toLowerCase();
+    const list = CARDS.filter(c => !q || (c.title + ' ' + c.url).toLowerCase().includes(q));
+    $('stubs').innerHTML = list.length ? list.map(c => {
+      const t = themeOf(c);
+      return `<button class="stub-card" data-open="${esc(c.id)}">
+        ${isHttps(c.image) ? `<img class="thumb" src="${esc(c.image)}" alt="" loading="lazy">` : `<span class="thumb" style="background:${t.btn}" aria-hidden="true">${esc(c.title.charAt(0))}</span>`}
+        <div class="info">
+          <div class="t">${esc(c.title)}</div>
+          <div class="d">${esc(hostOf(c.url))}${ME.isAdmin && !c.mine && c.creator ? `　由 ${esc(c.creator)} 建立` : ''}</div>
+          ${c.sent ? `<span class="state">發送 ${c.sent} 次・${esc(c.last)}</span>` : '<span class="state none">還沒發送</span>'}
+        </div>
+      </button>`;
+    }).join('') : '<p class="empty">找不到符合的圖卡。</p>';
+    $('stubs').querySelectorAll('[data-open]').forEach(b => b.onclick = () => go({ view: 'detail', id: b.dataset.open }));
+  };
+  draw();
+  if ($('q')) $('q').oninput = e => { QUERY = e.target.value; draw(); };
+}
+
+function renderDetail(id) {
+  const c = CARDS.find(x => x.id === id);
+  if (!c) { ROUTE = { view: 'tabs' }; TAB = 'sent'; return render(); }
+  view(`
+    <div class="subbar"><button class="back" id="back">← 我的圖卡</button></div>
+    ${ticket(c, fakeButtons(c))}
+    <div class="facts">
+      <div class="fact"><small>發送次數</small><span>${c.sent} 次</span></div>
+      <div class="fact"><small>最後發送</small><span>${esc(c.last || '還沒發送')}</span></div>
+      <div class="fact wide"><small>網址</small><span><a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.url)}</a></span></div>
+      <div class="fact wide"><small>建立</small><span>${esc(c.created)}${c.creator ? `　${esc(c.creator)}` : ''}</span></div>
+    </div>
+    <p class="note">修改後，之前發到群組的圖卡不會跟著改；再發送一次就是新版本。</p>
+    <div class="btn-row"><button class="btn plain" id="edit">編輯</button><button class="btn plain" id="copy">複製網址</button></div>
+    <button class="btn cancel" id="del" style="margin-top:10px">刪除這張圖卡</button>
+    <div class="dock"><div class="inner"><button class="btn send" id="resend">${c.sent ? '再發送到 LINE 群組' : '發送到 LINE 群組'}</button></div></div>`);
+  $('back').onclick = () => { TAB = 'sent'; go({ view: 'tabs' }); };
+  $('edit').onclick = () => go({ view: 'edit', id });
+  $('copy').onclick = () => copyText(c.url, '已複製網址');
+  $('resend').onclick = async () => {
+    if (needLogin(null)) return;
+    if (await share(c)) {
+      try { const r = await api('markSent', { cardId: id }); Object.assign(c, r.card); writeCache(); renderDetail(id); } catch (e) {}
+    }
+  };
+  $('del').onclick = () => armThen($('del'), '確定刪除？再按一次', async () => {
+    await api('deleteCards', { cardIds: [id] });
+    CARDS = CARDS.filter(x => x.id !== id); writeCache();
+    toast('已刪除圖卡紀錄（群組裡已發的圖卡不受影響）');
+    TAB = 'sent'; go({ view: 'tabs' });
+  });
+}
+
+function renderEdit(id) {
+  const c = CARDS.find(x => x.id === id);
+  if (!c) { ROUTE = { view: 'tabs' }; return render(); }
+  EDIT = { ...blankDraft(), ...c, auto: { url: normUrl(c.url) } };
+  view(`
+    <div class="subbar"><button class="back" id="back">← 取消</button><b>編輯圖卡</b></div>
+    ${cardForm(EDIT)}
+    <div class="dock"><div class="inner two"><button class="btn plain" id="save">儲存</button><button class="btn send" id="save-send">儲存並發送</button></div></div>`);
+  bindCardForm(EDIT);
+  $('back').onclick = () => go({ view: 'detail', id });
+  const save = async send => {
+    const p = formProblem(EDIT); if (p) { toast(p); return; }
+    if (send && needLogin(null)) return;
+    $('save').disabled = $('save-send').disabled = true;
+    try {
+      const { card } = await api('updateCard', { cardId: id, card: toPayload(EDIT) });
+      Object.assign(c, card);
+      if (send && await share(c)) Object.assign(c, (await api('markSent', { cardId: id })).card);
+      writeCache(); toast('已儲存'); go({ view: 'detail', id });
+    } catch (e) { toast(e.message); $('save').disabled = $('save-send').disabled = false; }
+  };
+  $('save').onclick = () => save(false);
+  $('save-send').onclick = () => save(true);
+}
+
+/* ================= 使用教學 =================
+   第一次打開平台：完整教學。之後加功能時：新步驟標上 since: 新版本號，並把 TOUR_VERSION 加 1。 */
+const TOUR_KEY = 'linkcard.tour';
+const TOUR_VERSION = 1;
+const q1 = sel => document.querySelector(sel);
+const TOUR_STEPS = [
+  { since: 1, tab: 'new', target: () => q1('#url-group'), title: '貼上網址',
+    text: '先貼上要分享的網址。平台會自動讀取網頁的標題、說明和預覽圖，幫你填好。' },
+  { since: 1, tab: 'new', target: () => q1('.pv-panel'), title: '圖卡預覽',
+    text: '群組裡的人看到的就是這張圖卡：上面是網頁的預覽圖，下面有按鈕。每改一個欄位，預覽會立刻更新。' },
+  { since: 1, tab: 'new', target: () => q1('.tone-pick'), title: '圖卡色調',
+    text: '挑一種顏色，按鈕和色帶會跟著換。也可以按「隨機換一個」。' },
+  { since: 1, tab: 'new', target: () => q1('[data-k=desc]') && q1('[data-k=desc]').closest('.group'), title: '標題與想說的話',
+    text: '標題會自動帶入，可以改成更好懂的名字；再寫一兩句推薦的話，大家比較願意點開。' },
+  { since: 1, tab: 'new', target: () => q1('#img-group'), title: '預覽圖',
+    text: '網頁有預覽圖就會自動用上。沒有的話可以從手機上傳一張，會自動縮小後存好。' },
+  { since: 1, tab: 'new', target: () => q1('#btn-group'), title: '按鈕',
+    text: '「開啟網頁」的文字可以改。「加到手機主畫面」會用手機瀏覽器打開，並一步步教大家把網站放到主畫面，以後像 App 一樣一點就開。' },
+  { since: 1, tab: 'new', target: () => q1('#send'), title: '發送到 LINE 群組',
+    text: '填好後按這裡，從 LINE 的選單勾選群組或朋友，可以一次發給好幾個。圖卡上也有「轉傳」連結，大家可以再轉給別的群組。' },
+  { since: 1, tab: 'new', target: () => q1('[data-tab=sent]'), title: '我的圖卡',
+    text: '發過的圖卡都記在這裡，可以看發送次數、再發送一次、編輯或刪除。' },
+  { since: 1, tab: 'new', target: () => q1('#install-link'), title: '安裝到手機桌面',
+    text: '點這裡可以把這個平台裝到手機桌面，以後一點就開。' },
+  { since: 1, tab: 'new', target: () => q1('#help'), title: '隨時重看教學',
+    text: '忘記怎麼用時，按這個「?」再看一次。' },
+];
+const tourSeen = () => { try { const v = localStorage.getItem(TOUR_KEY); return v == null ? 0 : parseInt(v, 10) || 0; } catch (e) { return TOUR_VERSION; } };
+const markTour = () => { try { localStorage.setItem(TOUR_KEY, String(TOUR_VERSION)); } catch (e) {} };
+function maybeStartTour() {
+  if (PARAMS.has('notour')) return;
+  const seen = tourSeen();
+  if (!seen) return startTour(TOUR_STEPS);
+  if (seen >= TOUR_VERSION) return;
+  markTour();
+  const fresh = TOUR_STEPS.filter(s => s.since > seen);
+  if (fresh.length) notice(`新功能：${fresh.map(s => s.title).join('、')}`, '看介紹', () => startTour(fresh));
+}
+function notice(text, action, fn) {
+  const n = $('notice');
+  $('notice-text').textContent = text; $('notice-go').textContent = action; n.hidden = false;
+  const close = () => { n.hidden = true; };
+  $('notice-go').onclick = () => { close(); fn(); };
+  $('notice-x').onclick = close;
+  setTimeout(close, 15000);
+}
+let TOUR = null;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+function startTour(steps) {
+  if (TOUR) return;
+  markTour();
+  if (!steps.length) return;
+  const el = document.createElement('div');
+  el.className = 'tour';
+  el.innerHTML = `<div class="tour-catch"></div><div class="tour-hole" aria-hidden="true"></div>
+    <div class="tour-bubble" role="dialog" aria-modal="true" aria-labelledby="tour-title" aria-describedby="tour-text">
+      <div class="tour-head"><h2 id="tour-title"></h2><span class="tour-count"></span></div>
+      <p id="tour-text"></p>
+      <div class="tour-btns"><button type="button" class="tour-skip">跳過</button><button type="button" class="tour-prev">上一步</button><button type="button" class="tour-next">下一步</button></div>
+    </div>`;
+  document.body.append(el);
+  TOUR = { el, steps, i: -1, from: TAB };
+  el.querySelector('.tour-catch').addEventListener('click', e => e.stopPropagation());
+  el.querySelector('.tour-skip').onclick = endTour;
+  el.querySelector('.tour-prev').onclick = () => tourGo(TOUR.i - 1, -1);
+  el.querySelector('.tour-next').onclick = () => tourGo(TOUR.i + 1, 1);
+  addEventListener('keydown', tourKey, true);
+  addEventListener('resize', placeTour);
+  addEventListener('scroll', placeTour, true);
+  requestAnimationFrame(() => el.classList.add('on'));
+  tourGo(0, 1);
+}
+function tourKey(e) { if (TOUR && e.key === 'Escape') { e.preventDefault(); endTour(); } }
+async function tourGo(i, dir) {
+  const t = TOUR;
+  if (!t || t.busy || i < 0) return;
+  if (i >= t.steps.length) return endTour();
+  const s = t.steps[i];
+  t.busy = true;
+  if (s.tab && (TAB !== s.tab || ROUTE.view !== 'tabs')) { TAB = s.tab; ROUTE = { view: 'tabs' }; render(); }
+  let el = null;
+  for (let n = 0; n < 40 && !el; n++) { el = s.target(); if (!el) await sleep(50); }
+  t.busy = false;
+  if (TOUR !== t) return;
+  if (!el) return tourGo(i + dir, dir);
+  t.i = i; t.target = el;
+  el.scrollIntoView({ block: 'center', behavior: reducedMotion() ? 'auto' : 'smooth' });
+  t.el.querySelector('#tour-title').textContent = s.title;
+  t.el.querySelector('#tour-text').textContent = s.text;
+  t.el.querySelector('.tour-count').textContent = `${i + 1} / ${t.steps.length}`;
+  t.el.querySelector('.tour-prev').disabled = i === 0;
+  t.el.querySelector('.tour-next').textContent = i === t.steps.length - 1 ? '完成' : '下一步';
+  placeTour();
+  await sleep(reducedMotion() ? 0 : 380);
+  placeTour();
+  t.el.querySelector('.tour-next').focus({ preventScroll: true });
+}
+function placeTour() {
+  const t = TOUR;
+  if (!t || !t.target) return;
+  const PAD = 6, GAP = 14, EDGE = 12;
+  const r = t.target.getBoundingClientRect();
+  const x = Math.max(r.left - PAD, 4), y = Math.max(r.top - PAD, 4);
+  const w = Math.min(r.right + PAD, innerWidth - 4) - x, h = Math.min(r.bottom + PAD, innerHeight - 4) - y;
+  const hole = t.el.querySelector('.tour-hole');
+  hole.style.width = `${Math.max(0, w)}px`; hole.style.height = `${Math.max(0, h)}px`;
+  hole.style.transform = `translate(${x}px, ${y}px)`;
+  const b = t.el.querySelector('.tour-bubble');
+  const bw = b.offsetWidth, bh = b.offsetHeight;
+  let by;
+  if (innerHeight - (y + h) - GAP - EDGE >= bh) by = y + h + GAP;
+  else if (y - GAP - EDGE >= bh) by = y - GAP - bh;
+  else by = innerHeight - EDGE - bh;
+  const bx = Math.min(Math.max(x + w / 2 - bw / 2, EDGE), innerWidth - EDGE - bw);
+  b.style.transform = `translate(${bx}px, ${Math.max(EDGE, by)}px)`;
+}
+function endTour() {
+  const t = TOUR;
+  if (!t) return;
+  TOUR = null;
+  removeEventListener('keydown', tourKey, true);
+  removeEventListener('resize', placeTour);
+  removeEventListener('scroll', placeTour, true);
+  t.el.classList.remove('on');
+  setTimeout(() => t.el.remove(), 220);
+  TAB = t.from; ROUTE = { view: 'tabs' }; render();
+}
+
+/* ================= 發送到群組 ================= */
+async function share(c) {
+  if (DEMO) { console.log(JSON.stringify(buildFlex(c))); toast('預覽模式：正式版會在這裡跳出群組選單'); return false; }
+  if (!liff.isLoggedIn()) { toast('發送到群組前需要登入 LINE 一次'); setTimeout(() => liff.login({ redirectUri: location.href }), 600); return false; }
+  if (!liff.isApiAvailable('shareTargetPicker')) { toast('無法開啟群組選單，請確認 LIFF 已開啟 Share target picker'); return false; }
+  try {
+    const res = await liff.shareTargetPicker([buildFlex(c)], { isMultiple: true });
+    toast(res ? '已發送到群組' : '已取消發送');
+    return !!res;
+  } catch (e) { toast('發送失敗：' + e.message); return false; }
+}
+
+/* ================= 群組裡的圖卡（Flex Message） ================= */
+function buildFlex(c) {
+  const t = themeOf(c);
+  const open = openUrl(c);
+  const body = [];
+  const host = hostOf(c.url);
+  if (host) body.push({ type: 'text', text: '🔗 ' + host, size: 'xs', color: t.muted, wrap: true });
+  body.push({ type: 'text', text: c.title, weight: 'bold', size: 'xl', wrap: true, color: t.ink, margin: host ? 'sm' : 'none', action: { type: 'uri', label: '開啟網頁', uri: open } });
+  if (c.desc) body.push({ type: 'text', text: c.desc, size: 'sm', color: t.muted, wrap: true, margin: 'md' });
+
+  const footer = [
+    { type: 'box', layout: 'horizontal', spacing: 'md', contents: [
+      { type: 'box', layout: 'vertical', width: '6px', cornerRadius: '3px', backgroundColor: t.notch, contents: [] },
+      { type: 'button', style: 'primary', color: t.btn, height: 'sm', flex: 1, action: { type: 'uri', label: String(c.button || '開啟網頁').slice(0, 20), uri: open } } ] },
+  ];
+  if (c.install) footer.push({ type: 'button', style: 'secondary', color: t.line, height: 'sm', margin: 'sm',
+    action: { type: 'uri', label: '📲 加到手機主畫面', uri: addUrl(c) } });
+  // LINE 不一定能長按轉傳這類圖卡，所以附一個轉傳連結
+  footer.push({ type: 'button', style: 'link', height: 'sm', color: t.muted, margin: 'xs',
+    action: { type: 'uri', label: '轉傳給其他群組或朋友', uri: shareUrl(c.id) } });
+
+  const bubble = {
+    type: 'bubble',
+    styles: { body: { backgroundColor: t.paper }, footer: { backgroundColor: t.paper } },
+    body: { type: 'box', layout: 'vertical', paddingAll: '20px', paddingBottom: '12px', contents: body },
+    footer: { type: 'box', layout: 'vertical', paddingAll: '16px', paddingTop: '8px', paddingBottom: '8px', contents: footer },
+  };
+  if (isHttps(c.image)) bubble.hero = { type: 'image', url: c.image, size: 'full', aspectRatio: '1.91:1', aspectMode: 'cover', action: { type: 'uri', uri: open } };
+  return { type: 'flex', altText: `🔗 ${c.title}`.slice(0, 400), contents: bubble };
+}
+
+main();
+</script>
+</body>
+</html>
