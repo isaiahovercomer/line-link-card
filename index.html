@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#2F3343">
+<meta name="color-scheme" content="only light">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg?v=2" type="image/svg+xml">
 <link rel="icon" href="icons/favicon-32.png?v=2" type="image/png" sizes="32x32">
@@ -24,6 +25,7 @@
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
   :root {
+    color-scheme: only light;
     /* 平台配色固定：IN CHRIST 配色（米白紙、海軍藍、金、磚紅） */
     --sky: #FAF6EE; --sky-2: #F0E9DB; --paper: #FFFDF8;
     --ink: #2F3343; --ink-2: #67645F; --rule: #E4DCCC;
@@ -198,7 +200,8 @@
   .tour-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
   .tour-head h2 { margin: 0; font: 900 17px/1.4 var(--serif); color: #D9A466; letter-spacing: .04em; }
   .tour-count { flex: none; font-size: 12px; font-weight: 700; color: var(--chrome-muted); font-variant-numeric: tabular-nums; }
-  .tour-bubble p { margin: 6px 0 12px; }
+  .tour-bubble p { margin: 6px 0 12px; min-height: 1.6em; }
+  .tour-bubble h2, .tour-bubble p { -webkit-text-fill-color: currentColor; }
   .tour-btns { display: flex; align-items: center; gap: 6px; }
   .tour-btns button { min-height: 40px; padding: 0 12px; border: 0; border-radius: 99px; background: transparent; font-size: 15px; color: var(--chrome-fg); cursor: pointer; }
   .tour-btns .tour-skip { color: var(--chrome-muted); padding-left: 4px; margin-right: auto; }
@@ -529,7 +532,7 @@ async function publisherFlow() {
   if (cache && cache.me && !DEMO) {
     ME = cache.me; CARDS = cache.cards || [];
     restoreDraft(); render(); maybeStartTour();
-    BOOT.then(([me, r]) => { const switched = me.userId !== ME.userId || me.isAdmin !== ME.isAdmin; ME = me; CARDS = r.cards; writeCache(); if (switched || TAB === 'sent' && ROUTE.view === 'tabs') render(); else updateCount(); }).catch(e => toast(e.message));
+    BOOT.then(([me, r]) => { const switched = me.userId !== ME.userId || me.isAdmin !== ME.isAdmin; ME = me; CARDS = r.cards; writeCache(); if (!TOUR && (switched || TAB === 'sent' && ROUTE.view === 'tabs')) render(); else updateCount(); }).catch(e => toast(e.message));
     return;
   }
   view(loading());
@@ -988,8 +991,7 @@ function startTour(steps) {
   addEventListener('keydown', tourKey, true);
   addEventListener('resize', placeTour);
   addEventListener('scroll', placeTour, true);
-  requestAnimationFrame(() => el.classList.add('on'));
-  tourGo(0, 1);
+  tourGo(0, 1).then(() => requestAnimationFrame(() => { if (TOUR && TOUR.el === el) el.classList.add('on'); }));
 }
 function tourKey(e) { if (TOUR && e.key === 'Escape') { e.preventDefault(); endTour(); } }
 async function tourGo(i, dir) {
@@ -1019,7 +1021,9 @@ async function tourGo(i, dir) {
 function placeTour() {
   const t = TOUR;
   if (!t || !t.target) return;
+  if (!t.target.isConnected) { const s = t.steps[t.i]; const el = s && s.target(); if (!el) return; t.target = el; }
   const PAD = 6, GAP = 14, EDGE = 12;
+  const innerHeight = (window.visualViewport && visualViewport.height) || window.innerHeight;
   const r = t.target.getBoundingClientRect();
   const x = Math.max(r.left - PAD, 4), y = Math.max(r.top - PAD, 4);
   const w = Math.min(r.right + PAD, innerWidth - 4) - x, h = Math.min(r.bottom + PAD, innerHeight - 4) - y;
