@@ -98,6 +98,14 @@
   .meta-status.err { color: var(--stamp); }
   .img-pick { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
   .img-pick .btn.small { margin: 0; }
+  .img-cands { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; }
+  .img-cands button { position: relative; padding: 0; border: 2px solid var(--rule); border-radius: 10px; overflow: hidden; background: var(--sky-2); aspect-ratio: 1.91 / 1; cursor: pointer; }
+  .img-cands img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .img-cands .shot { display: grid; place-items: center; font-size: 13px; color: var(--ink-2); line-height: 1.3; text-align: center; }
+  .img-cands button[aria-pressed="true"] { border-color: var(--ink); box-shadow: 0 0 0 1.5px var(--ink); }
+  .img-cands button[aria-pressed="true"]::after { content: "✓"; position: absolute; top: 4px; right: 4px; width: 20px; height: 20px; border-radius: 50%; background: var(--ink); color: #fff; font-size: 12px; line-height: 20px; text-align: center; }
+  .img-cands button:disabled { opacity: .5; cursor: progress; }
+  .img-cands .cand-label { grid-column: 1 / -1; font-size: 13px; color: var(--ink-2); }
   .switch { display: flex; align-items: flex-start; gap: 12px; background: var(--paper); border: 1.5px solid var(--rule); border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; cursor: pointer; }
   .switch input { width: 22px; height: 22px; margin: 2px 0 0; flex: none; accent-color: var(--ink); }
   .switch b { display: block; font-size: 15px; }
@@ -283,9 +291,11 @@ async function demoApi(action, d) {
     case 'fetchMeta': {
       const url = normUrl(d.url);
       if (!url) throw new Error('網址格式不對，請貼完整的網址');
-      if (/interlinear-bible/.test(url)) return { ok: true, meta: { url, title: '原文對照聖經', desc: '可離線使用的希臘文／希伯來文原文對照聖經', image: 'https://isaiahovercomer.github.io/interlinear-bible/icons/og-image.png', icon: '', pwa: true } };
-      return { ok: true, meta: { url, title: hostOf(url), desc: '', image: '', icon: '', pwa: false } };
+      if (/interlinear-bible/.test(url)) return { ok: true, meta: { url, title: '原文對照聖經', desc: '可離線使用的希臘文／希伯來文原文對照聖經', image: 'https://isaiahovercomer.github.io/interlinear-bible/icons/og-image.png', icon: '', pwa: true, images: ['https://isaiahovercomer.github.io/interlinear-bible/icons/og-image.png'] } };
+      return { ok: true, meta: { url, title: hostOf(url), desc: '', image: '', icon: '', pwa: false, images: [] } };
     }
+    case 'screenshot': return { ok: true, url: 'https://isaiahovercomer.github.io/interlinear-bible/icons/og-image.png' };
+    case 'rehostImage': return { ok: true, url: d.src };
     case 'createCard': { const c = { ...d.card, id: 'L' + Date.now(), created: '剛剛', sent: 0, last: '', creator: demo.me.displayName, mine: true }; demo.cards.unshift(c); return { ok: true, card: c }; }
     case 'updateCard': { const c = find(d.cardId); Object.assign(c, d.card); return { ok: true, card: c }; }
     case 'markSent': { const c = find(d.cardId); c.sent++; c.last = '剛剛'; return { ok: true, card: c }; }
@@ -508,7 +518,7 @@ async function myDataFlow() {
 }
 
 /* ================= 發布者平台 ================= */
-const blankDraft = () => ({ url: '', title: '', desc: '', image: '', icon: '', button: '開啟網頁', install: true, external: true, theme: randomTheme(), auto: {} });
+const blankDraft = () => ({ url: '', title: '', desc: '', image: '', icon: '', button: '開啟網頁', install: true, external: true, theme: randomTheme(), auto: {}, cands: [], picked: '' });
 let draft = blankDraft();
 let EDIT = null; // 正在編輯的圖卡
 
@@ -595,6 +605,7 @@ function cardForm(d) {
       <label class="field"><span>想說的話</span><textarea data-k="desc" maxlength="300" placeholder="例如：可以離線查原文，推薦給大家">${esc(d.desc)}</textarea><div class="help">選填，最多 300 字。</div></label>
     </div>
     <div class="group" id="img-group"><h2>預覽圖</h2>
+      <div class="img-cands" id="img-cands" hidden></div>
       <div class="img-pick">
         <label class="btn plain small">上傳圖片<input type="file" accept="image/*" id="img-file" hidden></label>
         <button type="button" class="btn plain small" id="img-site" hidden>用網頁的預覽圖</button>
@@ -602,7 +613,7 @@ function cardForm(d) {
         <span class="help" id="img-status"></span>
       </div>
       <input class="img-url" data-k="image" type="url" inputmode="url" value="${esc(/^data:/.test(d.image) ? '' : d.image)}" placeholder="或貼上圖片網址 https://">
-      <div class="help">建議橫式圖片（約 1200×630）。</div>
+      <div class="help">讀取網址後會自動帶入網頁的預覽圖；沒有的話會從網頁裡找圖片，或自動產生網頁截圖。也可以自己上傳（建議橫式，約 1200×630）。</div>
     </div>
     <div class="group" id="btn-group"><h2>按鈕</h2>
       ${f('button', '按鈕文字', 'maxlength="20" placeholder="開啟網頁"')}
@@ -627,16 +638,23 @@ async function loadMeta(d, force) {
     const a = d.auto;
     const fill = (k, v) => { if (v && (!d[k] || d[k] === a[k])) d[k] = v; a[k] = v; };
     fill('title', meta.title); fill('desc', meta.desc);
-    if (meta.image && (!d.image || d.image === a.image)) d.image = meta.image;
+    const autoImg = !d.image || d.image === a.image || d.image === a.picked;
     a.image = meta.image; a.url = url;
+    d.cands = meta.images || [];
     d.icon = meta.icon || '';
     d.url = meta.url || url;
     ['url', 'title', 'desc'].forEach(k => { const el = document.querySelector(`[data-k=${k}]`); if (el) el.value = d[k]; });
+    renderCands(d);
     syncImage(d);
     const got = [meta.title && '標題', meta.desc && '說明', meta.image && '預覽圖'].filter(Boolean);
     st.className = 'meta-status ok';
-    st.textContent = got.length ? `已帶入網頁的${got.join('、')}，可以再修改。` : '這個網頁沒有提供標題或預覽圖，請自己填寫。';
-    if (!meta.image) st.textContent += ' 沒有預覽圖，可以上傳一張。';
+    st.textContent = got.length ? `已帶入網頁的${got.join('、')}，可以再修改。` : '這個網頁沒有提供標題和說明，請自己填寫。';
+    // 預覽圖：網頁的預覽圖 → 網頁裡的第一張圖 → 網頁截圖
+    if (autoImg) {
+      if (meta.image) pickImage(d, meta.image);
+      else if (d.cands.length) { st.textContent += ' 網頁沒有預覽圖，先用網頁裡的圖片，也可以在下面換一張。'; pickImage(d, d.cands[0]); }
+      else { st.textContent += ' 網頁沒有圖片，自動用網頁截圖當預覽圖。'; pickImage(d, 'shot'); }
+    }
   } catch (e) {
     if (seq !== metaSeq) return;
     st.className = 'meta-status err'; st.textContent = e.message;
@@ -644,6 +662,66 @@ async function loadMeta(d, force) {
     if (seq === metaSeq) $('fetch-meta').disabled = false;
   }
   preview(d);
+}
+
+/** 讀取網頁後可以挑的圖片：網頁裡的圖片＋網頁截圖 */
+function renderCands(d) {
+  const box = $('img-cands');
+  if (!box) return;
+  if (!d.auto.url) { box.hidden = true; return; }
+  box.hidden = false;
+  box.innerHTML = `<span class="cand-label">從網頁挑一張，或用網頁截圖：</span>` +
+    d.cands.map((u, i) => `<button type="button" data-cand="${i}" aria-pressed="${d.picked === u}" aria-label="網頁圖片 ${i + 1}"><img src="${esc(u)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentNode.remove()"></button>`).join('') +
+    `<button type="button" data-cand="shot" class="shot" aria-pressed="${d.picked === 'shot'}">📷<br>網頁截圖</button>`;
+  box.querySelectorAll('[data-cand]').forEach(b => b.onclick = () => pickImage(d, b.dataset.cand === 'shot' ? 'shot' : d.cands[+b.dataset.cand]));
+}
+
+let pickSeq = 0;
+/** 選一張圖：網頁預覽圖直接用；網頁裡的圖轉存到雲端硬碟；'shot' 產生網頁截圖 */
+async function pickImage(d, src) {
+  const seq = ++pickSeq;
+  const status = $('img-status');
+  d.picked = src; renderCands(d);
+  const busy = on => document.querySelectorAll('#img-cands button').forEach(b => b.disabled = on);
+  try {
+    let url;
+    if (src === d.auto.image && isHttps(src)) url = src;
+    else {
+      busy(true);
+      status.textContent = src === 'shot' ? '正在產生網頁截圖（約 10 秒）…' : '正在處理圖片…';
+      if (src === 'shot') url = (await api('screenshot', { url: normUrl(d.url) })).url;
+      else {
+        const r = await api('rehostImage', { src });
+        url = r.url || (DEMO ? `data:${r.mime};base64,${r.data}` : (await api('uploadImage', { data: await toJpeg(`data:${r.mime};base64,${r.data}`), mime: 'image/jpeg' })).url);
+      }
+    }
+    if (seq !== pickSeq) return;
+    d.image = url; d.auto.picked = url;
+    status.textContent = src === 'shot' ? '已產生網頁截圖' : '';
+  } catch (e) {
+    if (seq !== pickSeq) return;
+    d.picked = ''; status.textContent = '';
+    toast(e.message);
+  } finally {
+    if (seq === pickSeq) { busy(false); renderCands(d); syncImage(d); preview(d); }
+  }
+}
+
+/** 其他格式的圖片（webp 等）轉成 JPEG，最寬 1200 */
+function toJpeg(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, 1200 / img.naturalWidth);
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.naturalWidth * scale); c.height = Math.round(img.naturalHeight * scale);
+      const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+      g.drawImage(img, 0, 0, c.width, c.height);
+      resolve(c.toDataURL('image/jpeg', 0.85));
+    };
+    img.onerror = () => reject(new Error('這張圖片無法使用，請換一張'));
+    img.src = dataUrl;
+  });
 }
 
 function syncImage(d) {
@@ -656,7 +734,7 @@ function syncImage(d) {
 function bindCardForm(d) {
   document.querySelectorAll('[data-k]').forEach(el => el.addEventListener('input', () => {
     d[el.dataset.k] = el.value;
-    if (el.dataset.k === 'image') syncImage(d);
+    if (el.dataset.k === 'image') { d.picked = ''; renderCands(d); syncImage(d); }
     preview(d);
   }));
   const urlEl = document.querySelector('[data-k=url]');
@@ -666,11 +744,12 @@ function bindCardForm(d) {
   $('fetch-meta').onclick = () => loadMeta(d, true);
   document.querySelectorAll('[data-c]').forEach(el => el.onchange = () => { d[el.dataset.c] = el.checked; preview(d); });
   $('img-file').onchange = e => uploadPicked(e.target, d);
-  $('img-clear').onclick = () => { d.image = ''; syncImage(d); preview(d); };
-  $('img-site').onclick = () => { d.image = d.auto.image; syncImage(d); preview(d); };
+  $('img-clear').onclick = () => { d.image = ''; d.picked = ''; renderCands(d); syncImage(d); preview(d); };
+  $('img-site').onclick = () => pickImage(d, d.auto.image);
   const setTone = id => { d.theme = id; document.querySelectorAll('[data-tone]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.tone === id))); preview(d); };
   document.querySelectorAll('[data-tone]').forEach(b => b.onclick = () => setTone(b.dataset.tone));
   $('tone-random').onclick = () => setTone(randomTheme(d.theme));
+  renderCands(d);
   syncImage(d);
   preview(d);
 }
@@ -684,6 +763,7 @@ async function uploadPicked(input, d) {
   try {
     const dataUrl = await shrinkImage(file, 1200, 0.85);
     d.image = DEMO ? dataUrl : (await api('uploadImage', { data: dataUrl, mime: 'image/jpeg' })).url;
+    d.picked = ''; renderCands(d);
     syncImage(d);
     status.textContent = '已上傳';
     preview(d);

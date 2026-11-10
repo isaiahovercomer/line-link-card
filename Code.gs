@@ -64,6 +64,8 @@ function doPost(e) {
         case 'me':           out = { ok: true, userId: user.userId, displayName: user.displayName, isAdmin: isPublisher(user.userId) }; break;
         case 'fetchMeta':    out = { ok: true, meta: fetchMeta(req.url) }; break;
         case 'uploadImage':  out = { ok: true, url: uploadImage(user, req.data, req.mime) }; break;
+        case 'screenshot':   out = { ok: true, url: pageShot(user, req.url) }; break;
+        case 'rehostImage':  out = { ok: true, ...rehostImage(user, req.src) }; break;
         case 'createCard':   out = { ok: true, card: createCard(user, req.card || {}) }; break;
         case 'updateCard':   own(); out = { ok: true, card: updateCard(req.cardId, req.card || {}) }; break;
         case 'markSent':     own(); out = { ok: true, card: markSent(req.cardId) }; break;
@@ -224,14 +226,65 @@ function fetchMeta(url) {
   const iconTag = links('apple-touch-icon')[0] || links('icon').sort((a, b) => (parseInt(attr(b, 'sizes')) || 0) - (parseInt(attr(a, 'sizes')) || 0))[0];
   let icon = iconTag ? absUrl(attr(iconTag, 'href'), url) : '';
   if (!/^https:/i.test(icon) || /\.ico(\?|$)/i.test(icon)) icon = '';
+  // 網頁內容裡的圖片：沒有預覽圖時給使用者挑
+  const images = [];
+  const addImg = u => { u = absUrl(u, url); if (/^https?:\/\//i.test(u) && !/\.(svg|gif|ico)(\?|#|$)/i.test(u) && !/(sprite|pixel|spacer|blank|loading|placeholder|1x1)/i.test(u) && images.indexOf(u) < 0) images.push(u); };
+  if (image) images.push(image);
+  links('image_src').forEach(t => addImg(attr(t, 'href')));
+  const body = html.slice(head.length, head.length + 400000);
+  (body.match(/<img\b[^>]*>/gi) || []).some(t => {
+    const w = parseInt(attr(t, 'width')) || 0, h = parseInt(attr(t, 'height')) || 0;
+    if ((w && w < 150) || (h && h < 100)) return false;
+    const src = attr(t, 'data-src') || attr(t, 'data-original') || attr(t, 'data-lazy-src') || attr(t, 'src') || (attr(t, 'srcset').split(',')[0] || '').trim().split(/\s+/)[0];
+    if (src && !/^data:/i.test(src)) addImg(src);
+    return images.length >= 8;
+  });
   return {
     url,
+    images,
     title: (meta('og:title') || meta('twitter:title') || titleTag).slice(0, 80),
     desc: (meta('og:description') || meta('description') || meta('twitter:description')).slice(0, 200),
     image,
     icon,
     pwa: links('manifest').length > 0,
   };
+}
+
+/* ---------- 網頁截圖與轉存圖片（存到雲端硬碟，LINE 圖卡才讀得到） ---------- */
+function saveImage(user, blob, prefix) {
+  const ext = /png/.test(blob.getContentType()) ? '.png' : '.jpg';
+  blob.setName(prefix + '-' + fmt(new Date(), 'yyyyMMdd-HHmmss') + ext);
+  const file = imageFolder().createFile(blob);
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  file.setDescription('建立者：' + user.displayName);
+  return 'https://lh3.googleusercontent.com/d/' + file.getId();
+}
+
+/** 產生網頁截圖（1200×628，剛好是圖卡比例） */
+function pageShot(user, url) {
+  url = cleanUrl(url);
+  let res;
+  try {
+    res = UrlFetchApp.fetch('https://image.thum.io/get/width/1200/crop/628/noanimate/' + url, { muteHttpExceptions: true, followRedirects: true });
+  } catch (e) { throw new Error('網頁截圖失敗，請稍後再試或自己上傳圖片'); }
+  const type = String(res.getHeaders()['Content-Type'] || res.getHeaders()['content-type'] || '');
+  if (res.getResponseCode() !== 200 || !/^image\/(png|jpeg)/i.test(type)) throw new Error('網頁截圖失敗，請稍後再試或自己上傳圖片');
+  return saveImage(user, res.getBlob(), 'shot');
+}
+
+/** 轉存網頁裡的圖片；JPEG／PNG 直接存，其他格式回傳給瀏覽器轉檔 */
+function rehostImage(user, src) {
+  src = String(src || '').trim();
+  if (!/^https?:\/\/\S+$/i.test(src)) throw new Error('圖片網址不對');
+  let res;
+  try { res = UrlFetchApp.fetch(src, { muteHttpExceptions: true, followRedirects: true, headers: { 'User-Agent': 'Mozilla/5.0 (compatible; LineLinkCard/1.0)' } }); }
+  catch (e) { throw new Error('讀不到這張圖片，請換一張'); }
+  const type = String(res.getHeaders()['Content-Type'] || res.getHeaders()['content-type'] || '').toLowerCase();
+  if (res.getResponseCode() !== 200 || !/^image\//.test(type)) throw new Error('讀不到這張圖片，請換一張');
+  const blob = res.getBlob();
+  if (blob.getBytes().length > 5000000) throw new Error('圖片太大，請換一張');
+  if (/^image\/(png|jpe?g)/.test(type)) return { url: saveImage(user, blob, 'page') };
+  return { data: Utilities.base64Encode(blob.getBytes()), mime: type.split(';')[0] };
 }
 
 /* ---------- 圖片上傳 ---------- */
