@@ -70,7 +70,6 @@
   .ticket .perf::after { right: -31px; }
   .ticket .stub { padding: 16px 22px 12px; display: grid; gap: 8px; }
   .ticket .stub .row1 { display: flex; gap: 12px; }
-  .ticket .stub .notch { width: 6px; background: var(--marigold); border-radius: 3px; }
   .fake-btn { flex: 1; text-align: center; font-weight: 700; padding: 10px; border-radius: 10px; font-size: 15px; }
   .fake-btn.primary { background: var(--line); color: #fff; }
   .fake-btn.second { background: var(--rule); color: var(--ink); }
@@ -380,8 +379,8 @@ function ticket(c, stubHtml, extra = '') {
 }
 /** 圖卡下半部的按鈕（預覽用，不能點） */
 const fakeButtons = c => `<div class="stub">
-  <div class="row1"><span class="notch"></span><span class="fake-btn primary">${esc((c.button || '').trim() || '開啟網頁')}</span></div>
-  ${c.install ? `<div class="row1"><span class="notch" style="visibility:hidden"></span><span class="fake-btn second">📲 加到手機主畫面</span></div>` : ''}
+  <div class="row1"><span class="fake-btn primary">${esc((c.button || '').trim() || '開啟網頁')}</span></div>
+  ${c.install ? `<div class="row1"><span class="fake-btn second">📲 加到手機主畫面</span></div>` : ''}
   <div class="fake-link">轉傳給其他群組或朋友</div>
 </div>`;
 
@@ -990,10 +989,9 @@ function buildFlex(c) {
   body.push({ type: 'text', text: c.title, weight: 'bold', size: 'xl', wrap: true, color: t.ink, margin: host ? 'sm' : 'none', action: { type: 'uri', label: '開啟網頁', uri: open } });
   if (c.desc) body.push({ type: 'text', text: c.desc, size: 'sm', color: t.muted, wrap: true, margin: 'md' });
 
+  // 兩個按鈕同樣寬度、上下對齊
   const footer = [
-    { type: 'box', layout: 'horizontal', spacing: 'md', contents: [
-      { type: 'box', layout: 'vertical', width: '6px', cornerRadius: '3px', backgroundColor: t.notch, contents: [] },
-      { type: 'button', style: 'primary', color: t.btn, height: 'sm', flex: 1, action: { type: 'uri', label: String(c.button || '開啟網頁').slice(0, 20), uri: open } } ] },
+    { type: 'button', style: 'primary', color: t.btn, height: 'sm', action: { type: 'uri', label: String(c.button || '開啟網頁').slice(0, 20), uri: open } },
   ];
   if (c.install) footer.push({ type: 'button', style: 'secondary', color: t.line, height: 'sm', margin: 'sm',
     action: { type: 'uri', label: '📲 加到手機主畫面', uri: addUrl(c) } });
