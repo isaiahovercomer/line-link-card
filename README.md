@@ -13,7 +13,7 @@
 
 | 用途 | 網址 |
 |---|---|
-| 平台 | `https://liff.line.me/<LIFF ID>` |
+| 平台 | https://liff.line.me/2012412693-IKxGZtWK |
 | 預覽模式（假資料） | `index.html?demo&notour` |
 | 加到主畫面說明頁 | `index.html?add=<網址>&t=<標題>&ic=<圖示>` |
 | 轉傳頁 | `https://liff.line.me/<LIFF ID>?share=<圖卡代碼>` |
