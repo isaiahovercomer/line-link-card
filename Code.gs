@@ -37,12 +37,12 @@ const CONFIG = {
 const SH = { CARDS: '圖卡', PUBLISHERS: '發布者' };
 
 const HEADERS = {
-  '圖卡': ['圖卡代碼', '標題', '網址', '說明', '圖片網址', '按鈕文字', '安裝按鈕', '色調', '網站圖示', '建立者', '建立時間', '發送次數', '最後發送', '外部瀏覽器'],
+  '圖卡': ['圖卡代碼', '標題', '網址', '說明', '圖片網址', '按鈕文字', '安裝按鈕', '色調', '網站圖示', '建立者', '建立時間', '發送次數', '最後發送', '外部瀏覽器', '活動資訊'],
   '發布者': ['LINE userId', '名稱', '備註'],
 };
 
 // 「圖卡」工作表的欄位位置（從 0 開始）
-const C = { ID: 0, TITLE: 1, URL: 2, DESC: 3, IMAGE: 4, BUTTON: 5, INSTALL: 6, THEME: 7, ICON: 8, CREATOR: 9, CREATED: 10, SENT: 11, LAST: 12, EXTERNAL: 13 };
+const C = { ID: 0, TITLE: 1, URL: 2, DESC: 3, IMAGE: 4, BUTTON: 5, INSTALL: 6, THEME: 7, ICON: 8, CREATOR: 9, CREATED: 10, SENT: 11, LAST: 12, EXTERNAL: 13, INFO: 14 };
 
 function doGet() {
   return json({ ok: true, msg: '網頁圖卡平台運作中' });
@@ -308,8 +308,13 @@ function uploadImage(user, data, mime) {
 /* ---------- 圖卡 ---------- */
 const THEMES = ['classic', 'feast', 'prayer', 'gospel', 'youth', 'kids', 'study', 'service'];
 
+function parseInfo(v) { try { const o = JSON.parse(String(v || '') || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } }
 function rowToCard(r) {
+  const extra = parseInfo(r[C.INFO]);
+  const ratio = extra.ratio === '1:1' ? '1:1' : '1.91:1';
+  delete extra.ratio;
   return {
+    info: extra, ratio,
     id: String(r[C.ID]), title: String(r[C.TITLE]), url: String(r[C.URL]), desc: String(r[C.DESC] || ''),
     image: String(r[C.IMAGE] || ''), button: String(r[C.BUTTON] || '') || '開啟網頁',
     install: r[C.INSTALL] === '' ? true : isTrue(r[C.INSTALL]),
@@ -334,7 +339,23 @@ function cleanCard(c) {
     image: httpsOrEmpty(c.image), button: String(c.button || '').trim().slice(0, 20) || '開啟網頁',
     install: c.install !== false, external: c.external !== false,
     theme: THEMES.includes(c.theme) ? c.theme : 'classic', icon: httpsOrEmpty(c.icon),
+    info: cleanInfo(c.info, c.ratio),
   };
+}
+
+/** 活動資訊：主題、時間、地點、費用、對象、聯絡人（都選填），加上圖片比例；存成 JSON */
+function cleanInfo(info, ratio) {
+  info = info || {};
+  const lim = { topic: 60, place: 80, fee: 40, target: 40, contact: 60 };
+  const o = {};
+  Object.keys(lim).forEach(k => { const v = String(info[k] || '').trim().slice(0, lim[k]); if (v) o[k] = v; });
+  ['start', 'end'].forEach(k => { const v = String(info[k] || ''); if (/^\d{4}-\d\d-\d\dT\d\d:\d\d$/.test(v)) o[k] = v; });
+  if (ratio === '1:1') o.ratio = '1:1';
+  return JSON.stringify(o);
+}
+function ensureInfoHeader() {
+  const cell = sheet(SH.CARDS).getRange(1, C.INFO + 1);
+  if (!cell.getValue()) cell.setValue('活動資訊').setFontWeight('bold');
 }
 
 function getCard(id) {
@@ -355,8 +376,8 @@ function createCard(user, input) {
   row[C.ID] = id; row[C.TITLE] = c.title; row[C.URL] = c.url; row[C.DESC] = c.desc; row[C.IMAGE] = c.image;
   row[C.BUTTON] = c.button; row[C.INSTALL] = c.install; row[C.THEME] = c.theme; row[C.ICON] = c.icon;
   row[C.CREATOR] = user.displayName + ' (' + user.userId + ')'; row[C.CREATED] = new Date(); row[C.SENT] = 0; row[C.LAST] = '';
-  row[C.EXTERNAL] = c.external;
-  withLock(() => sheet(SH.CARDS).appendRow(row));
+  row[C.EXTERNAL] = c.external; row[C.INFO] = c.info;
+  withLock(() => { ensureInfoHeader(); sheet(SH.CARDS).appendRow(row); });
   return getCard(id);
 }
 
@@ -366,7 +387,8 @@ function updateCard(id, input) {
     const { index } = findCardRow(id);
     const sh = sheet(SH.CARDS);
     sh.getRange(index, C.TITLE + 1, 1, 8).setValues([[c.title, c.url, c.desc, c.image, c.button, c.install, c.theme, c.icon]]);
-    sh.getRange(index, C.EXTERNAL + 1).setValue(c.external);
+    sh.getRange(index, C.EXTERNAL + 1, 1, 2).setValues([[c.external, c.info]]);
+    ensureInfoHeader();
   });
   return getCard(id);
 }

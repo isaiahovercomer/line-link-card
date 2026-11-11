@@ -61,11 +61,28 @@
   /* ---------- 圖卡預覽（跟群組裡看到的一樣） ---------- */
   .ticket { position: relative; background: var(--paper); border-radius: 18px; overflow: hidden; box-shadow: var(--shadow); border-top: 6px solid var(--line); }
   .ticket .hero { width: 100%; aspect-ratio: 1.91 / 1; object-fit: cover; display: block; background: var(--rule); }
+  .ticket .hero.square { aspect-ratio: 1 / 1; }
   .ticket .main { padding: 18px 22px 16px; }
   .ticket .site { display: flex; align-items: center; gap: 6px; color: var(--ink-2); font-size: 13px; margin: 0 0 6px; word-break: break-all; }
   .ticket .title { font-family: var(--serif); font-weight: 900; font-size: 23px; line-height: 1.35; margin: 0; word-break: break-word; }
   .ticket .title.empty { color: var(--rule); }
   .ticket .desc { color: var(--ink-2); font-size: 14px; margin: 10px 0 0; white-space: pre-wrap; word-break: break-word; }
+  .info-box { margin-top: 12px; background: var(--rule); border-radius: 10px; padding: 10px 12px; font-size: 14px; }
+  .info-box .info-topic { display: block; font-size: 15px; margin-bottom: 4px; word-break: break-word; }
+  .info-box dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; margin: 0; }
+  .info-box dt { color: var(--ink-2); }
+  .info-box dd { margin: 0; word-break: break-word; }
+  .group h2 .opt { font-size: 12px; font-weight: 500; color: var(--ink-2); margin-left: 6px; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+  .two .field input { min-width: 0; padding: 12px 10px; }
+  .field input[type=datetime-local] { -webkit-appearance: none; appearance: none; min-width: 0; display: block; }
+  #invite-box { margin-top: 4px; }
+  #invite-box .btn-row { margin-top: 6px; }
+  #invite-box .help.ok { color: var(--gold-text); font-size: 13px; }
+  .viewer { position: fixed; inset: 0; z-index: 2000; background: rgba(16,18,28,.92); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; gap: 12px; }
+  .viewer img { max-width: 100%; max-height: 70vh; border-radius: 12px; -webkit-touch-callout: default; }
+  .viewer p { color: #F7F1E4; margin: 0; font-size: 14px; }
+  .viewer .btn-row { width: min(360px, 100%); }
   .ticket .perf { position: relative; height: 0; border-top: 2px dashed var(--rule); margin: 0 18px; }
   .ticket .perf::before, .ticket .perf::after { content: ""; position: absolute; top: -13px; width: 24px; height: 24px; border-radius: 50%; background: var(--sky); }
   .ticket .perf::before { left: -31px; }
@@ -279,7 +296,7 @@ const demo = {
   me: { userId: 'Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', displayName: '預覽使用者', isAdmin: true },
   cards: [
     { id: 'L1', title: '原文對照聖經', url: 'https://isaiahovercomer.github.io/interlinear-bible/', desc: '可離線使用的希臘文／希伯來文原文對照聖經', image: 'https://isaiahovercomer.github.io/interlinear-bible/icons/og-image.png', icon: '', button: '開啟網頁', install: true, external: true, theme: 'classic', created: '2026/11/9 21:30', sent: 3, last: '2026/11/10 08:12', creator: '簡晨光', mine: true },
-    { id: 'L2', title: 'LINE簡易活動登記建立平台', url: 'https://isaiahovercomer.github.io/line-signup/', desc: '建立活動登記圖卡、發到 LINE 群組、看登記名單與統計。', image: '', icon: 'https://isaiahovercomer.github.io/line-signup/icons/apple-touch-icon.png', button: '開啟平台', install: true, external: true, theme: 'gospel', created: '2026/11/8 10:02', sent: 0, last: '', creator: '王小明', mine: false },
+    { id: 'L2', title: 'LINE簡易活動登記建立平台', url: 'https://isaiahovercomer.github.io/line-signup/', desc: '建立活動登記圖卡、發到 LINE 群組、看登記名單與統計。', image: '', icon: 'https://isaiahovercomer.github.io/line-signup/icons/apple-touch-icon.png', button: '開啟平台', install: true, external: true, theme: 'gospel', info: { topic: '感恩節愛筵', start: '2026-11-26T18:30', end: '2026-11-26T21:00', place: '台中市西區民生路 1 號', fee: '免費', contact: '王弟兄 0912-345-678' }, created: '2026/11/8 10:02', sent: 0, last: '', creator: '王小明', mine: false },
   ],
 };
 if (DEMO) window.liff = { isInClient: () => false, closeWindow() {}, isApiAvailable: () => false, getContext: () => null, isLoggedIn: () => true };
@@ -381,11 +398,12 @@ function ticket(c, stubHtml, extra = '') {
   const host = hostOf(c.url);
   return `<article class="ticket" style="${themeVars(themeOf(c))}">
     ${extra}
-    ${/^(https:|data:image\/)/.test(c.image || '') ? `<img class="hero" src="${esc(c.image)}" alt="" onerror="this.remove()">` : ''}
+    ${/^(https:|data:image\/)/.test(c.image || '') ? `<img class="hero${c.ratio === '1:1' ? ' square' : ''}" src="${esc(c.image)}" alt="" onerror="this.remove()">` : ''}
     <div class="main">
       ${host ? `<p class="site">🔗 ${esc(host)}</p>` : ''}
       <h2 class="title ${c.title ? '' : 'empty'}">${esc(c.title || '標題')}</h2>
       ${c.desc ? `<p class="desc">${esc(c.desc)}</p>` : ''}
+      ${infoHtml(c)}
     </div>
     ${stubHtml ? `<div class="perf" aria-hidden="true"></div>${stubHtml}` : ''}
   </article>`;
@@ -521,7 +539,7 @@ async function myDataFlow() {
 }
 
 /* ================= 發布者平台 ================= */
-const blankDraft = () => ({ url: '', title: '', desc: '', image: '', icon: '', button: '開啟網頁', install: true, external: true, theme: randomTheme(), auto: {}, cands: [], picked: '' });
+const blankDraft = () => ({ url: '', title: '', desc: '', image: '', icon: '', button: '開啟網頁', install: true, external: true, theme: randomTheme(), auto: {}, cands: [], picked: '', info: {}, ratio: '1.91:1', invite: false, inviteData: '' });
 let draft = blankDraft();
 let EDIT = null; // 正在編輯的圖卡
 
@@ -583,6 +601,8 @@ function render() {
 
 /* ---------- 圖卡表單（新增與編輯共用） ---------- */
 function cardForm(d) {
+  d.info = d.info || {};
+  const fi = (k, label, attrs = '', help = '') => `<label class="field"><span>${label}</span><input data-i="${k}" value="${esc(d.info[k] || '')}" ${attrs}>${help ? `<div class="help">${help}</div>` : ''}</label>`;
   const f = (k, label, attrs = '', help = '') => `<label class="field"><span>${label}</span><input data-k="${k}" value="${esc(d[k])}" ${attrs}>${help ? `<div class="help">${help}</div>` : ''}</label>`;
   return `
     <section class="pv-panel" aria-label="圖卡預覽">
@@ -606,6 +626,16 @@ function cardForm(d) {
     <div class="group"><h2>標題與說明</h2>
       ${f('title', '標題', 'maxlength="80" placeholder="例如：原文對照聖經"')}
       <label class="field"><span>想說的話</span><textarea data-k="desc" maxlength="300" placeholder="例如：可以離線查原文，推薦給大家">${esc(d.desc)}</textarea><div class="help">選填，最多 300 字。</div></label>
+    </div>
+    <div class="group" id="info-group"><h2>活動資訊<span class="opt">選填</span></h2>
+      <p class="help" style="margin:-4px 0 10px">有填的項目才會顯示在圖卡上，也可以做成一張邀請卡。</p>
+      ${fi('topic', '活動主題', 'maxlength="60" placeholder="例如：感恩節愛筵"')}
+      ${fi('start', '開始時間', 'type="datetime-local"')}
+      ${fi('end', '結束時間', 'type="datetime-local"', '選填。同一天的話只會顯示結束的時刻。')}
+      ${fi('place', '地點', 'maxlength="80" placeholder="例如：台中市○○路 1 號 3 樓"', '圖卡上點地點會開啟 Google 地圖。')}
+      <div class="two">${fi('fee', '費用', 'maxlength="40" placeholder="例如：免費"')}${fi('target', '對象', 'maxlength="40" placeholder="例如：青年、社青"')}</div>
+      ${fi('contact', '聯絡人', 'maxlength="60" placeholder="例如：王弟兄 0912-345-678"', '有電話號碼的話，圖卡上點一下就能撥打。')}
+      <div id="invite-box"></div>
     </div>
     <div class="group" id="img-group"><h2>預覽圖</h2>
       <div class="img-cands" id="img-cands" hidden></div>
@@ -684,6 +714,7 @@ let pickSeq = 0;
 async function pickImage(d, src) {
   const seq = ++pickSeq;
   const status = $('img-status');
+  inviteOff(d);
   d.picked = src; renderCands(d);
   const busy = on => document.querySelectorAll('#img-cands button').forEach(b => b.disabled = on);
   try {
@@ -737,7 +768,7 @@ function syncImage(d) {
 function bindCardForm(d) {
   document.querySelectorAll('[data-k]').forEach(el => el.addEventListener('input', () => {
     d[el.dataset.k] = el.value;
-    if (el.dataset.k === 'image') { d.picked = ''; renderCands(d); syncImage(d); }
+    if (el.dataset.k === 'image') { inviteOff(d); d.picked = ''; renderCands(d); syncImage(d); }
     preview(d);
   }));
   const urlEl = document.querySelector('[data-k=url]');
@@ -746,14 +777,18 @@ function bindCardForm(d) {
   urlEl.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); loadMeta(d, true); } });
   $('fetch-meta').onclick = () => loadMeta(d, true);
   document.querySelectorAll('[data-c]').forEach(el => el.onchange = () => { d[el.dataset.c] = el.checked; preview(d); });
+  document.querySelectorAll('[data-i]').forEach(el => el.addEventListener('input', () => { d.info[el.dataset.i] = el.value; preview(d); scheduleInvite(d); }));
+  document.querySelectorAll('[data-k=title], [data-k=desc], [data-k=url]').forEach(el => el.addEventListener('input', () => scheduleInvite(d)));
   $('img-file').onchange = e => uploadPicked(e.target, d);
-  $('img-clear').onclick = () => { d.image = ''; d.picked = ''; renderCands(d); syncImage(d); preview(d); };
+  $('img-clear').onclick = () => { inviteOff(d); d.image = ''; d.picked = ''; renderCands(d); syncImage(d); preview(d); };
   $('img-site').onclick = () => pickImage(d, d.auto.image);
-  const setTone = id => { d.theme = id; document.querySelectorAll('[data-tone]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.tone === id))); preview(d); };
+  const setTone = id => { d.theme = id; document.querySelectorAll('[data-tone]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.tone === id))); preview(d); scheduleInvite(d); };
   document.querySelectorAll('[data-tone]').forEach(b => b.onclick = () => setTone(b.dataset.tone));
   $('tone-random').onclick = () => setTone(randomTheme(d.theme));
   renderCands(d);
   syncImage(d);
+  syncInvite(d);
+  if (d.invite && !d.inviteData) scheduleInvite(d, true);
   preview(d);
 }
 
@@ -765,6 +800,7 @@ async function uploadPicked(input, d) {
   status.textContent = '上傳中…';
   try {
     const dataUrl = await shrinkImage(file, 1200, 0.85);
+    inviteOff(d);
     d.image = DEMO ? dataUrl : (await api('uploadImage', { data: dataUrl, mime: 'image/jpeg' })).url;
     d.picked = ''; renderCands(d);
     syncImage(d);
@@ -790,12 +826,240 @@ function shrinkImage(file, maxW, quality) {
   });
 }
 
-function preview(d) {
+/* ================= 活動資訊與邀請卡 ================= */
+const INFO_KEYS = ['topic', 'start', 'end', 'place', 'fee', 'target', 'contact'];
+const WEEK = '日一二三四五六';
+const parseLocal = s => { const m = /^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d)$/.exec(s || ''); return m ? new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5]) : null; };
+/** 時間的顯示：11/23（日）19:30–21:00；跨日顯示兩個日期；不是今年才寫年份 */
+function fmtWhen(start, end) {
+  const a = parseLocal(start), b = parseLocal(end);
+  if (!a) return '';
+  const day = d => `${d.getFullYear() !== new Date().getFullYear() ? d.getFullYear() + '/' : ''}${d.getMonth() + 1}/${d.getDate()}（${WEEK[d.getDay()]}）`;
+  const hm = d => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  let s = `${day(a)}${hm(a)}`;
+  if (b && b > a) s += a.toDateString() === b.toDateString() ? `–${hm(b)}` : ` – ${day(b)}${hm(b)}`;
+  return s;
+}
+const telOf = s => { const m = /(\+?\d[\d\s-]{7,}\d)/.exec(s || ''); return m ? 'tel:' + m[1].replace(/[\s-]/g, '') : ''; };
+/** 圖卡上要顯示的活動資訊（不含主題） */
+function infoRows(info) {
+  info = info || {};
+  const rows = [];
+  const when = fmtWhen(info.start, info.end);
+  if (when) rows.push({ k: '時間', v: when });
+  if (info.place) rows.push({ k: '地點', v: info.place, uri: 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(info.place) });
+  if (info.fee) rows.push({ k: '費用', v: info.fee });
+  if (info.target) rows.push({ k: '對象', v: info.target });
+  if (info.contact) rows.push({ k: '聯絡', v: info.contact, uri: telOf(info.contact) });
+  return rows;
+}
+const hasInfo = info => !!(info && (info.topic || infoRows(info).length));
+function infoHtml(c) {
+  const info = c.info || {};
+  if (!hasInfo(info)) return '';
+  const topic = info.topic && info.topic !== c.title ? info.topic : '';
+  return `<div class="info-box">${topic ? `<b class="info-topic">${esc(topic)}</b>` : ''}
+    ${infoRows(info).length ? `<dl>${infoRows(info).map(r => `<dt>${r.k}</dt><dd>${esc(r.v)}</dd>`).join('')}</dl>` : ''}</div>`;
+}
+function infoFlex(c, t) {
+  const info = c.info || {};
+  if (!hasInfo(info)) return null;
+  const contents = [];
+  if (info.topic && info.topic !== c.title) contents.push({ type: 'text', text: info.topic, weight: 'bold', size: 'md', color: t.ink, wrap: true });
+  infoRows(info).forEach(r => contents.push({ type: 'box', layout: 'baseline', spacing: 'md', contents: [
+    { type: 'text', text: r.k, size: 'sm', color: t.muted, flex: 0 },
+    Object.assign({ type: 'text', text: r.v, size: 'sm', color: t.ink, wrap: true, flex: 1 }, r.uri ? { action: { type: 'uri', label: r.k, uri: r.uri }, decoration: 'underline' } : {}) ] }));
+  return { type: 'box', layout: 'vertical', margin: 'lg', spacing: 'sm', paddingAll: '12px', cornerRadius: '10px', backgroundColor: t.line, contents };
+}
+const cleanInfo = info => { const o = {}; INFO_KEYS.forEach(k => { const v = String((info || {})[k] || '').trim(); if (v) o[k] = v; }); return o; };
+
+/* ---------- 邀請卡：在瀏覽器裡用 canvas 畫，不需要 AI ---------- */
+let qrLib = null;
+function loadQr() {
+  return qrLib || (qrLib = new Promise(res => {
+    if (window.qrcode) return res(window.qrcode);
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js';
+    s.onload = () => res(window.qrcode || null); s.onerror = () => res(null);
+    document.head.append(s);
+  }));
+}
+function wrapText(g, text, maxW, maxLines) {
+  const lines = []; let cur = '', rest = false;
+  const chars = [...String(text || '').replace(/\s+/g, ' ').trim()];
+  for (let i = 0; i < chars.length; i++) {
+    const ch = chars[i];
+    if (cur && g.measureText(cur + ch).width > maxW) {
+      lines.push(cur); cur = ch === ' ' ? '' : ch;
+      if (lines.length === maxLines) { rest = true; break; }
+    } else cur += ch;
+  }
+  if (!rest && cur) lines.push(cur);
+  if (rest) { let l = lines[maxLines - 1]; while (l && g.measureText(l + '…').width > maxW) l = l.slice(0, -1); lines[maxLines - 1] = l + '…'; }
+  return lines;
+}
+function roundRect(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
+
+/** 畫邀請卡（1200×1200），回傳 JPEG 的 data URL */
+async function drawInvite(d) {
+  const t = themeOf(d), info = d.info || {};
+  const W = 1200, H = 1200, M = 90;
+  const topic = (info.topic || d.title || '').trim() || '邀請';
+  const rows = infoRows(info);
+  const desc = (d.desc || '').trim();
   const url = normUrl(d.url);
-  $('pv').innerHTML = ticket({ ...d, url, title: d.title.trim() }, fakeButtons(d));
+  const all = topic + rows.map(r => r.k + r.v).join('') + desc + hostOf(url) + '邀請函誠摯邀請您掃描開啟網頁';
+  if (document.fonts && document.fonts.load) await Promise.all(['900 80px "Noto Serif TC"', '600 40px "Noto Serif TC"', '500 40px "Noto Sans TC"', '700 40px "Noto Sans TC"']
+    .map(f => document.fonts.load(f, all))).catch(() => {});
+  const QR = await loadQr();
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  const SERIF = '"Noto Serif TC", "Songti TC", serif', SANS = '"Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif';
+  g.textBaseline = 'alphabetic';
+
+  // 底色與上方色塊（主題）
+  g.fillStyle = t.paper; g.fillRect(0, 0, W, H);
+  g.font = `900 84px ${SERIF}`;
+  let topicLines = wrapText(g, topic, W - M * 2, 3), topicSize = 84;
+  if (topicLines.length === 3) { topicSize = 70; g.font = `900 70px ${SERIF}`; topicLines = wrapText(g, topic, W - M * 2, 3); }
+  if (topicLines.length > 1 && !/…$/.test(topicLines[topicLines.length - 1])) {
+    // 平均分行，避免最後一行只剩一兩個字
+    let lo = (W - M * 2) / topicLines.length, hi = W - M * 2;
+    for (let k = 0; k < 12; k++) { const mid = (lo + hi) / 2; if (wrapText(g, topic, mid, 9).length > topicLines.length) lo = mid; else hi = mid; }
+    topicLines = wrapText(g, topic, hi + 1, topicLines.length);
+  }
+  const lh = Math.round(topicSize * 1.28);
+  const bandH = 150 + topicLines.length * lh + 50;
+  g.fillStyle = t.btn; g.fillRect(0, 0, W, bandH);
+  g.fillStyle = t.notch; g.font = `600 38px ${SERIF}`; g.textAlign = 'center';
+  g.fillText('邀　請　函', W / 2, 112);
+  g.fillRect(W / 2 - 185, 98, 64, 3); g.fillRect(W / 2 + 121, 98, 64, 3);
+  g.fillStyle = t.paper; g.font = `900 ${topicSize}px ${SERIF}`;
+  topicLines.forEach((l, i) => g.fillText(l, W / 2, 150 + topicSize + i * lh));
+
+  // 票根缺口與虛線
+  g.fillStyle = t.paper;
+  [0, W].forEach(x => { g.beginPath(); g.arc(x, bandH, 34, 0, Math.PI * 2); g.fill(); });
+  g.strokeStyle = t.notch; g.lineWidth = 3; g.setLineDash([14, 12]);
+  g.beginPath(); g.moveTo(56, bandH); g.lineTo(W - 56, bandH); g.stroke(); g.setLineDash([]);
+
+  // 下方：網址與 QR code
+  const footTop = H - 250;
+  const qrSize = 190;
+  if (QR && url) {
+    try {
+      const q = QR(0, 'M'); q.addData(url); q.make();
+      const n = q.getModuleCount(), cell = Math.floor(qrSize / (n + 2)), size = cell * (n + 2);
+      const qx = W - M - size, qy = H - 70 - size;
+      g.fillStyle = '#fff'; roundRect(g, qx, qy, size, size, 12); g.fill();
+      g.fillStyle = '#1E2130';
+      for (let r = 0; r < n; r++) for (let col = 0; col < n; col++) if (q.isDark(r, col)) g.fillRect(qx + (col + 1) * cell, qy + (r + 1) * cell, cell, cell);
+    } catch (e) {}
+  }
+  g.textAlign = 'left';
+  g.fillStyle = t.ink; g.font = `700 34px ${SANS}`; g.fillText(QR && url ? '掃描 QR code 開啟網頁' : '誠摯邀請您', M, H - 150);
+  g.fillStyle = t.muted; g.font = `500 30px ${SANS}`;
+  const host = hostOf(url); if (host) g.fillText((wrapText(g, '🔗 ' + host, W - M * 2 - qrSize - 40, 1)[0] || ''), M, H - 100);
+
+  // 中間：活動資訊（放不下就縮小字）
+  const area = { top: bandH + 70, bottom: footTop - 20 };
+  const labelW = 132, gapX = 28, valX = M + labelW + gapX, valW = W - M - valX;
+  const layout = (scale, draw) => {
+    let y = area.top;
+    const vs = Math.round(40 * scale), vlh = Math.round(vs * 1.4), ls = Math.round(32 * scale);
+    for (const r of rows) {
+      g.font = `500 ${vs}px ${SANS}`;
+      const lines = wrapText(g, r.v, valW, 2);
+      if (draw) {
+        g.fillStyle = t.line; roundRect(g, M, y - vs + 2, labelW, Math.round(vs * 1.5), Math.round(vs * 0.75)); g.fill();
+        g.fillStyle = t.ink; g.font = `700 ${ls}px ${SANS}`; g.textAlign = 'center';
+        g.fillText(r.k, M + labelW / 2, y + Math.round(vs * 0.32));
+        g.textAlign = 'left'; g.font = `500 ${vs}px ${SANS}`;
+        lines.forEach((l, i) => g.fillText(l, valX, y + Math.round(vs * 0.32) + i * vlh));
+      }
+      y += lines.length * vlh + Math.round(26 * scale);
+    }
+    if (desc) {
+      const ds = Math.round(34 * scale), dlh = Math.round(ds * 1.5), top = y + (rows.length ? Math.round(14 * scale) : 0);
+      g.font = `500 ${ds}px ${SANS}`;
+      const room = draw ? Math.floor((area.bottom - top) / dlh) : 3;
+      if (room > 0) {
+        const lines = wrapText(g, desc, W - M * 2, Math.min(room, 3));
+        if (draw) { g.fillStyle = t.muted; lines.forEach((l, i) => g.fillText(l, M, top + ds + i * dlh)); }
+        y = top + lines.length * dlh;
+      }
+    }
+    return y;
+  };
+  let scale = 1;
+  const room0 = area.bottom - area.top;
+  while (scale > 0.6 && layout(scale, false) > area.bottom) scale -= 0.05;
+  const used = layout(scale, false) - area.top;
+  if (used < room0 * 0.6) area.top += Math.round((room0 - used) / 3);
+  layout(scale, true);
+
+  // 外框
+  g.strokeStyle = t.notch; g.lineWidth = 4; roundRect(g, 28, 28, W - 56, H - 56, 28); g.stroke();
+  return c.toDataURL('image/jpeg', 0.9);
 }
 
-const toPayload = d => ({ url: normUrl(d.url), title: d.title.trim(), desc: d.desc.trim(), image: d.image, icon: d.icon, button: d.button.trim() || '開啟網頁', install: !!d.install, external: !!d.external, theme: d.theme });
+let inviteTimer = 0, inviteSeq = 0;
+/** 邀請卡模式：改資料時重畫（只在手機上畫，發送時才上傳） */
+function scheduleInvite(d, now) {
+  if (!d.invite) return;
+  clearTimeout(inviteTimer);
+  inviteTimer = setTimeout(async () => {
+    const seq = ++inviteSeq;
+    try { const data = await drawInvite(d); if (seq === inviteSeq && d.invite) { d.inviteData = data; preview(d); } }
+    catch (e) { toast('邀請卡產生失敗：' + e.message); }
+  }, now ? 0 : 350);
+}
+function syncInvite(d) {
+  const box = $('invite-box');
+  if (!box) return;
+  box.innerHTML = d.invite
+    ? `<p class="help ok">✓ 已用邀請卡當圖卡的圖片。修改上面的資料，邀請卡會跟著更新。</p>
+       <div class="btn-row"><button type="button" class="btn plain small" id="inv-view">看大圖／儲存</button><button type="button" class="btn plain small" id="inv-off">改回原本的圖片</button></div>`
+    : `<button type="button" class="btn plain" id="inv-make">🎟 產生邀請卡，當作圖卡的圖片</button>
+       <p class="help">會用上面的活動資訊、圖卡色調和網址 QR code，畫成一張正方形邀請卡。</p>`;
+  if ($('inv-make')) $('inv-make').onclick = () => {
+    if (!hasInfo(d.info) && !d.title.trim()) { toast('請先填活動主題或標題'); return; }
+    d.invite = true; d.prevImage = d.image; d.prevRatio = d.ratio;
+    d.picked = ''; renderCands(d); syncInvite(d); scheduleInvite(d, true);
+    $('pv').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+  if ($('inv-off')) $('inv-off').onclick = () => {
+    d.invite = false; d.inviteData = ''; d.image = d.prevImage || d.image; d.ratio = d.prevRatio || '1.91:1';
+    syncInvite(d); syncImage(d); preview(d);
+  };
+  if ($('inv-view')) $('inv-view').onclick = async () => showImage(d.inviteData || await drawInvite(d), `邀請卡-${(d.info.topic || d.title || '活動').slice(0, 20)}.jpg`);
+}
+/** 不是邀請卡模式了（使用者換了別的圖片） */
+function inviteOff(d) { if (d.invite) { d.invite = false; d.inviteData = ''; d.ratio = '1.91:1'; syncInvite(d); } else d.ratio = '1.91:1'; }
+/** 發送或儲存前：把邀請卡上傳成正式圖片 */
+async function finalizeInvite(d) {
+  if (!d.invite) return;
+  const data = d.inviteData || await drawInvite(d);
+  d.image = DEMO ? data : (await api('uploadImage', { data, mime: 'image/jpeg' })).url;
+  d.ratio = '1:1'; d.invite = false; d.inviteData = '';
+}
+/** 全螢幕看圖：LINE 裡面長按儲存，其他瀏覽器可下載 */
+function showImage(src, name) {
+  const v = document.createElement('div');
+  v.className = 'viewer';
+  v.innerHTML = `<img src="${src}" alt="邀請卡"><p>${inLineApp() ? '長按圖片即可儲存或分享' : '長按圖片儲存，或按下載'}</p>
+    <div class="btn-row">${inLineApp() ? '' : `<a class="btn send" download="${esc(name)}" href="${src}">下載</a>`}<button type="button" class="btn plain">關閉</button></div>`;
+  v.querySelector('button').onclick = () => v.remove();
+  document.body.append(v);
+}
+
+function preview(d) {
+  const url = normUrl(d.url);
+  const inv = d.invite && d.inviteData;
+  $('pv').innerHTML = ticket({ ...d, url, title: d.title.trim(), image: inv ? d.inviteData : d.image, ratio: inv ? '1:1' : d.ratio }, fakeButtons(d));
+}
+
+const toPayload = d => ({ url: normUrl(d.url), title: d.title.trim(), desc: d.desc.trim(), image: d.image, icon: d.icon, button: d.button.trim() || '開啟網頁', install: !!d.install, external: !!d.external, theme: d.theme, info: cleanInfo(d.info), ratio: d.ratio === '1:1' ? '1:1' : '1.91:1' });
 /** 檢查必填；有問題回傳要提示的文字 */
 function formProblem(d) {
   if (!normUrl(d.url)) { document.querySelector('[data-k=url]').focus(); return '請先貼上網址'; }
@@ -806,7 +1070,7 @@ function formProblem(d) {
 /** 在 LINE 外面發送到群組，要先登入 LINE；先把填好的內容存起來 */
 function needLogin(d) {
   if (DEMO || liff.isLoggedIn()) return false;
-  if (d) try { localStorage.setItem(DRAFT_KEY, JSON.stringify(d)); } catch (e) {}
+  if (d) try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...d, inviteData: '' })); } catch (e) {}
   toast('發送到群組前需要登入 LINE 一次');
   setTimeout(() => liff.login({ redirectUri: location.href }), 600);
   return true;
@@ -824,6 +1088,7 @@ async function createAndSend() {
   const btn = $('send');
   btn.disabled = true; btn.textContent = '建立中';
   try {
+    await finalizeInvite(draft);
     const { card } = await api('createCard', { card: toPayload(draft) });
     btn.textContent = '選擇群組';
     if (await share(card)) await api('markSent', { cardId: card.id }).catch(() => {});
@@ -899,7 +1164,7 @@ function renderDetail(id) {
 function renderEdit(id) {
   const c = CARDS.find(x => x.id === id);
   if (!c) { ROUTE = { view: 'tabs' }; return render(); }
-  EDIT = { ...blankDraft(), ...c, auto: { url: normUrl(c.url) } };
+  EDIT = { ...blankDraft(), ...c, info: { ...(c.info || {}) }, auto: { url: normUrl(c.url) } };
   view(`
     <div class="subbar"><button class="back" id="back">← 取消</button><b>編輯圖卡</b></div>
     ${cardForm(EDIT)}
@@ -911,6 +1176,7 @@ function renderEdit(id) {
     if (send && needLogin(null)) return;
     $('save').disabled = $('save-send').disabled = true;
     try {
+      await finalizeInvite(EDIT);
       const { card } = await api('updateCard', { cardId: id, card: toPayload(EDIT) });
       Object.assign(c, card);
       if (send && await share(c)) Object.assign(c, (await api('markSent', { cardId: id })).card);
@@ -924,7 +1190,7 @@ function renderEdit(id) {
 /* ================= 使用教學 =================
    第一次打開平台：完整教學。之後加功能時：新步驟標上 since: 新版本號，並把 TOUR_VERSION 加 1。 */
 const TOUR_KEY = 'linkcard.tour';
-const TOUR_VERSION = 1;
+const TOUR_VERSION = 2;
 const q1 = sel => document.querySelector(sel);
 const TOUR_STEPS = [
   { since: 1, tab: 'new', target: () => q1('#url-group'), title: '貼上網址',
@@ -935,6 +1201,8 @@ const TOUR_STEPS = [
     text: '挑一種顏色，按鈕和色帶會跟著換。也可以按「隨機換一個」。' },
   { since: 1, tab: 'new', target: () => q1('[data-k=desc]') && q1('[data-k=desc]').closest('.group'), title: '標題與想說的話',
     text: '標題會自動帶入，可以改成更好懂的名字；再寫一兩句推薦的話，大家比較願意點開。' },
+  { since: 2, tab: 'new', target: () => q1('#info-group'), title: '活動資訊與邀請卡',
+    text: '要分享活動時，可以填主題、時間、地點、費用等資訊（都是選填），會整齊地顯示在圖卡上。再按「產生邀請卡」，就會自動畫成一張邀請卡當作圖卡的圖片，也可以存下來另外分享。' },
   { since: 1, tab: 'new', target: () => q1('#img-group'), title: '預覽圖',
     text: '網頁有預覽圖就會自動用上。沒有的話可以從手機上傳一張，會自動縮小後存好。' },
   { since: 1, tab: 'new', target: () => q1('#btn-group'), title: '按鈕',
@@ -1072,6 +1340,8 @@ function buildFlex(c) {
   if (host) body.push({ type: 'text', text: '🔗 ' + host, size: 'xs', color: t.muted, wrap: true });
   body.push({ type: 'text', text: c.title, weight: 'bold', size: 'xl', wrap: true, color: t.ink, margin: host ? 'sm' : 'none', action: { type: 'uri', label: '開啟網頁', uri: open } });
   if (c.desc) body.push({ type: 'text', text: c.desc, size: 'sm', color: t.muted, wrap: true, margin: 'md' });
+  const infoBox = infoFlex(c, t);
+  if (infoBox) body.push(infoBox);
 
   // 兩個按鈕同樣寬度、上下對齊
   const footer = [
@@ -1089,8 +1359,9 @@ function buildFlex(c) {
     body: { type: 'box', layout: 'vertical', paddingAll: '20px', paddingBottom: '12px', contents: body },
     footer: { type: 'box', layout: 'vertical', paddingAll: '16px', paddingTop: '8px', paddingBottom: '8px', contents: footer },
   };
-  if (isHttps(c.image)) bubble.hero = { type: 'image', url: c.image, size: 'full', aspectRatio: '1.91:1', aspectMode: 'cover', action: { type: 'uri', uri: open } };
-  return { type: 'flex', altText: `🔗 ${c.title}`.slice(0, 400), contents: bubble };
+  if (isHttps(c.image)) bubble.hero = { type: 'image', url: c.image, size: 'full', aspectRatio: c.ratio === '1:1' ? '1:1' : '1.91:1', aspectMode: 'cover', action: { type: 'uri', uri: open } };
+  const when = fmtWhen((c.info || {}).start, (c.info || {}).end);
+  return { type: 'flex', altText: `🔗 ${(c.info && c.info.topic) || c.title}${when ? '｜' + when : ''}`.slice(0, 400), contents: bubble };
 }
 
 main();
