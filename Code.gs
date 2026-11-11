@@ -70,6 +70,12 @@ function doPost(e) {
         case 'updateCard':   own(); out = { ok: true, card: updateCard(req.cardId, req.card || {}) }; break;
         case 'markSent':     own(); out = { ok: true, card: markSent(req.cardId) }; break;
         case 'listCards':    out = { ok: true, cards: listCards(user) }; break;
+        case 'boot': {       // 平台首頁一次拿齊：我是誰＋圖卡列表；用 LINE 登入時順便發通行證（perf-boot-v1）
+          const isAdmin = isPublisher(user.userId);
+          out = { ok: true, me: { userId: user.userId, displayName: user.displayName, isAdmin }, cards: listCards(user, isAdmin) };
+          if (!req.session) out.session = createSession(user);
+          break;
+        }
         case 'deleteCards':  out = { ok: true, removed: deleteCards(user, req.cardIds || []) }; break;
         case 'myData':       out = { ok: true, ...myData(user) }; break;
         case 'deleteMyData': out = { ok: true, ...deleteMyData(user) }; break;
@@ -111,20 +117,38 @@ function createSession(user) {
     for (let i = data.length - 1; i >= 1; i--) if (data[i][3] instanceof Date && data[i][3] < now) sh.deleteRow(i + 1);
     sh.appendRow([token, user.userId, user.displayName, exp, now]);
   });
+  cacheSession(token, user.userId, user.displayName, exp);
   return { token, expires: exp.getTime() };
 }
 
+/* 通行證查詢結果放在 CacheService 10 分鐘，每次請求不用整張「登入」表讀一遍；刪除通行證時一併清掉 */
+const SESSION_CACHE_SEC = 600;
+const sessionKey = token => 'sess:' + token;
+function cacheSession(token, userId, displayName, exp) {
+  try { CacheService.getScriptCache().put(sessionKey(token), JSON.stringify({ u: userId, n: displayName, e: exp.getTime() }), SESSION_CACHE_SEC); } catch (e) {}
+}
+function uncacheSessions(tokens) {
+  try { if (tokens.length) CacheService.getScriptCache().removeAll(tokens.map(sessionKey)); } catch (e) {}
+}
+
 function userFromSession(token) {
-  const data = sessionSheet().getDataRange().getValues();
   const now = new Date();
+  let hit = null;
+  try { hit = JSON.parse(CacheService.getScriptCache().get(sessionKey(token)) || 'null'); } catch (e) {}
+  if (hit && hit.e > now.getTime()) return { userId: String(hit.u), displayName: String(hit.n) };
+  const data = sessionSheet().getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
-    if (data[i][0] === token && data[i][3] instanceof Date && data[i][3] > now) return { userId: String(data[i][1]), displayName: String(data[i][2]) };
+    if (data[i][0] === token && data[i][3] instanceof Date && data[i][3] > now) {
+      cacheSession(token, String(data[i][1]), String(data[i][2]), data[i][3]);
+      return { userId: String(data[i][1]), displayName: String(data[i][2]) };
+    }
   }
   throw new Error('SESSION_EXPIRED');
 }
 
 function deleteSession(token) {
   if (!token) return;
+  uncacheSessions([token]);
   withLock(() => {
     const sh = sessionSheet(), data = sh.getDataRange().getValues();
     for (let i = data.length - 1; i >= 1; i--) if (data[i][0] === token) sh.deleteRow(i + 1);
@@ -402,8 +426,8 @@ function markSent(id) {
 }
 
 /** 自己建立的圖卡；管理員看得到全部。新的在前面 */
-function listCards(user) {
-  const admin = isPublisher(user.userId);
+function listCards(user, isAdmin) {
+  const admin = isAdmin === undefined ? isPublisher(user.userId) : isAdmin;
   return rows(SH.CARDS)
     .filter(r => r[C.ID] && (admin || creatorOf(r) === user.userId))
     .map(r => Object.assign(rowToCard(r), { mine: creatorOf(r) === user.userId }))
@@ -441,7 +465,9 @@ function deleteMyData(user) {
       return n;
     };
     const cards = del(SH.CARDS, r => creatorOf(r) === user.userId);
-    sessionSheet(); del(SESSION_SHEET, r => String(r[1]) === user.userId);
+    const tokens = [];
+    sessionSheet(); del(SESSION_SHEET, r => String(r[1]) === user.userId && tokens.push(String(r[0]))); // 通行證也一併刪除
+    uncacheSessions(tokens);
     return { cards };
   });
 }
