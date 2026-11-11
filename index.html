@@ -79,6 +79,13 @@
   #invite-box { margin-top: 4px; }
   #invite-box .btn-row { margin-top: 6px; }
   #invite-box .help.ok { color: var(--gold-text); font-size: 13px; }
+  .inv-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin: 4px 0 8px; }
+  .inv-head b { font-size: 15px; }
+  .inv-head small { font-size: 12px; color: var(--ink-2); }
+  .inv-styles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 6px; }
+  .inv-styles button { border: 1.5px solid var(--rule); background: var(--paper); border-radius: 12px; padding: 10px 2px 8px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 13px; color: var(--ink); cursor: pointer; }
+  .inv-styles i { font-style: normal; font-size: 24px; line-height: 1; }
+  .inv-styles button[aria-checked="true"] { border-color: var(--ink); box-shadow: 0 0 0 1.5px var(--ink); font-weight: 700; }
   .viewer { position: fixed; inset: 0; z-index: 2000; background: rgba(16,18,28,.92); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; gap: 12px; }
   .viewer img { max-width: 100%; max-height: 70vh; border-radius: 12px; -webkit-touch-callout: default; }
   .viewer p { color: #F7F1E4; margin: 0; font-size: 14px; }
@@ -539,7 +546,7 @@ async function myDataFlow() {
 }
 
 /* ================= 發布者平台 ================= */
-const blankDraft = () => ({ url: '', title: '', desc: '', image: '', icon: '', button: '開啟網頁', install: true, external: true, theme: randomTheme(), auto: {}, cands: [], picked: '', info: {}, ratio: '1.91:1', invite: false, inviteData: '' });
+const blankDraft = () => ({ url: '', title: '', desc: '', image: '', icon: '', button: '開啟網頁', install: true, external: true, theme: randomTheme(), auto: {}, cands: [], picked: '', info: {}, ratio: '1.91:1', invite: false, inviteData: '', inviteStyle: '' });
 let draft = blankDraft();
 let EDIT = null; // 正在編輯的圖卡
 
@@ -900,107 +907,280 @@ function wrapText(g, text, maxW, maxLines) {
 }
 function roundRect(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
 
-/** 畫邀請卡（1200×1200），回傳 JPEG 的 data URL */
-async function drawInvite(d) {
-  const t = themeOf(d), info = d.info || {};
-  const W = 1200, H = 1200, M = 90;
-  const topic = (info.topic || d.title || '').trim() || '邀請';
-  const rows = infoRows(info);
-  const desc = (d.desc || '').trim();
-  const url = normUrl(d.url);
-  const all = topic + rows.map(r => r.k + r.v).join('') + desc + hostOf(url) + '邀請函誠摯邀請您掃描開啟網頁';
-  if (document.fonts && document.fonts.load) await Promise.all(['900 80px "Noto Serif TC"', '600 40px "Noto Serif TC"', '500 40px "Noto Sans TC"', '700 40px "Noto Sans TC"']
-    .map(f => document.fonts.load(f, all))).catch(() => {});
-  const QR = await loadQr();
-  const c = document.createElement('canvas'); c.width = W; c.height = H;
-  const g = c.getContext('2d');
-  const SERIF = '"Noto Serif TC", "Songti TC", serif', SANS = '"Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif';
-  g.textBaseline = 'alphabetic';
+/** 邀請卡樣式（版面與裝飾）；顏色用上方的「圖卡色調」，兩者可以自由搭配 */
+const INVITE_STYLES = {
+  ticket:  { name: '經典票券', icon: '🎫' },
+  elegant: { name: '淡雅',     icon: '🌿' },
+  cute:    { name: '可愛插畫', icon: '🧸' },
+  tech:    { name: '科技現代', icon: '💠' },
+};
+const STYLE_KEY = 'linkcard.inviteStyle';
+const savedStyle = () => { try { const s = localStorage.getItem(STYLE_KEY); return INVITE_STYLES[s] ? s : 'ticket'; } catch (e) { return 'ticket'; } };
 
-  // 底色與上方色塊（主題）
-  g.fillStyle = t.paper; g.fillRect(0, 0, W, H);
-  g.font = `900 84px ${SERIF}`;
-  let topicLines = wrapText(g, topic, W - M * 2, 3), topicSize = 84;
-  if (topicLines.length === 3) { topicSize = 70; g.font = `900 70px ${SERIF}`; topicLines = wrapText(g, topic, W - M * 2, 3); }
-  if (topicLines.length > 1 && !/…$/.test(topicLines[topicLines.length - 1])) {
-    // 平均分行，避免最後一行只剩一兩個字
-    let lo = (W - M * 2) / topicLines.length, hi = W - M * 2;
-    for (let k = 0; k < 12; k++) { const mid = (lo + hi) / 2; if (wrapText(g, topic, mid, 9).length > topicLines.length) lo = mid; else hi = mid; }
-    topicLines = wrapText(g, topic, hi + 1, topicLines.length);
+const hex3 = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+const mix = (a, b, p) => '#' + hex3(a).map((v, i) => Math.round(v + (hex3(b)[i] - v) * p).toString(16).padStart(2, '0')).join('');
+const rgba = (h, a) => `rgba(${hex3(h).join(',')},${a})`;
+
+/** 主題分行：放不下就縮小字，並把各行長度平均 */
+function fitTopic(g, text, font, sizes, maxW) {
+  let size = sizes[0], lines;
+  for (size of sizes) { g.font = font(size); lines = wrapText(g, text, maxW, 3); if (lines.length < 3) break; }
+  if (lines.length > 1 && !/…$/.test(lines[lines.length - 1])) {
+    let lo = maxW / lines.length, hi = maxW;
+    for (let k = 0; k < 12; k++) { const mid = (lo + hi) / 2; if (wrapText(g, text, mid, 9).length > lines.length) lo = mid; else hi = mid; }
+    lines = wrapText(g, text, hi + 1, lines.length);
   }
-  const lh = Math.round(topicSize * 1.28);
-  const bandH = 150 + topicLines.length * lh + 50;
-  g.fillStyle = t.btn; g.fillRect(0, 0, W, bandH);
-  g.fillStyle = t.notch; g.font = `600 38px ${SERIF}`; g.textAlign = 'center';
-  g.fillText('邀　請　函', W / 2, 112);
-  g.fillRect(W / 2 - 185, 98, 64, 3); g.fillRect(W / 2 + 121, 98, 64, 3);
-  g.fillStyle = t.paper; g.font = `900 ${topicSize}px ${SERIF}`;
-  topicLines.forEach((l, i) => g.fillText(l, W / 2, 150 + topicSize + i * lh));
+  return { lines, size };
+}
 
-  // 票根缺口與虛線
-  g.fillStyle = t.paper;
-  [0, W].forEach(x => { g.beginPath(); g.arc(x, bandH, 34, 0, Math.PI * 2); g.fill(); });
-  g.strokeStyle = t.notch; g.lineWidth = 3; g.setLineDash([14, 12]);
-  g.beginPath(); g.moveTo(56, bandH); g.lineTo(W - 56, bandH); g.stroke(); g.setLineDash([]);
+/** QR code；畫不出來回傳 false */
+function drawQr(c, x, y, size, fg, bg, pad = 1) {
+  if (!c.QR || !c.url) return false;
+  try {
+    const q = c.QR(0, 'M'); q.addData(c.url); q.make();
+    const n = q.getModuleCount(), cell = Math.floor(size / (n + pad * 2)), s = cell * (n + pad * 2);
+    const ox = x + (size - s) / 2, oy = y + (size - s) / 2;
+    c.g.fillStyle = bg; roundRect(c.g, ox, oy, s, s, Math.max(6, cell)); c.g.fill();
+    c.g.fillStyle = fg;
+    for (let r = 0; r < n; r++) for (let k = 0; k < n; k++) if (q.isDark(r, k)) c.g.fillRect(ox + (k + pad) * cell, oy + (r + pad) * cell, cell, cell);
+    return true;
+  } catch (e) { return false; }
+}
 
-  // 下方：網址與 QR code
-  const footTop = H - 250;
-  const qrSize = 190;
-  if (QR && url) {
-    try {
-      const q = QR(0, 'M'); q.addData(url); q.make();
-      const n = q.getModuleCount(), cell = Math.floor(qrSize / (n + 2)), size = cell * (n + 2);
-      const qx = W - M - size, qy = H - 70 - size;
-      g.fillStyle = '#fff'; roundRect(g, qx, qy, size, size, 12); g.fill();
-      g.fillStyle = '#1E2130';
-      for (let r = 0; r < n; r++) for (let col = 0; col < n; col++) if (q.isDark(r, col)) g.fillRect(qx + (col + 1) * cell, qy + (r + 1) * cell, cell, cell);
-    } catch (e) {}
-  }
-  g.textAlign = 'left';
-  g.fillStyle = t.ink; g.font = `700 34px ${SANS}`; g.fillText(QR && url ? '掃描 QR code 開啟網頁' : '誠摯邀請您', M, H - 150);
-  g.fillStyle = t.muted; g.font = `500 30px ${SANS}`;
-  const host = hostOf(url); if (host) g.fillText((wrapText(g, '🔗 ' + host, W - M * 2 - qrSize - 40, 1)[0] || ''), M, H - 100);
-
-  // 中間：活動資訊（放不下就縮小字）
-  const area = { top: bandH + 70, bottom: footTop - 20 };
-  const labelW = 132, gapX = 28, valX = M + labelW + gapX, valW = W - M - valX;
-  const layout = (scale, draw) => {
-    let y = area.top;
-    const vs = Math.round(40 * scale), vlh = Math.round(vs * 1.4), ls = Math.round(32 * scale);
+/** 活動資訊與說明：放不下先縮小字；內容少就往中間移 */
+function drawBody(c, o) {
+  const { g, rows, desc } = c;
+  const ax = () => (o.align === 'center' ? o.x + o.w / 2 : o.x);
+  const run = (scale, draw, top) => {
+    let y = top;
+    const vs = Math.round(o.vs * scale), vlh = Math.round(vs * 1.38), ls = Math.round(o.ls * scale);
     for (const r of rows) {
-      g.font = `500 ${vs}px ${SANS}`;
-      const lines = wrapText(g, r.v, valW, 2);
-      if (draw) {
-        g.fillStyle = t.line; roundRect(g, M, y - vs + 2, labelW, Math.round(vs * 1.5), Math.round(vs * 0.75)); g.fill();
-        g.fillStyle = t.ink; g.font = `700 ${ls}px ${SANS}`; g.textAlign = 'center';
-        g.fillText(r.k, M + labelW / 2, y + Math.round(vs * 0.32));
-        g.textAlign = 'left'; g.font = `500 ${vs}px ${SANS}`;
-        lines.forEach((l, i) => g.fillText(l, valX, y + Math.round(vs * 0.32) + i * vlh));
+      if (o.stack) {
+        if (draw) { g.font = o.labelFont(ls); g.fillStyle = o.labelColor; g.textAlign = o.align; g.fillText(o.labelText ? o.labelText(r) : r.k, ax(), y + ls); }
+        y += Math.round(ls * 1.5);
+        g.font = o.valueFont(vs);
+        const lines = wrapText(g, r.v, o.w, 2);
+        if (draw) { g.fillStyle = o.valueColor; g.textAlign = o.align; lines.forEach((l, i) => g.fillText(l, ax(), y + vs + i * vlh)); }
+        y += lines.length * vlh + Math.round(o.rowGap * scale);
+      } else {
+        const lw = Math.round(o.labelW * scale), vx = o.x + lw + Math.round(o.gap * scale), vw = o.x + o.w - vx;
+        g.font = o.valueFont(vs);
+        const lines = wrapText(g, r.v, vw, 2);
+        const rowH = Math.max(lines.length * vlh, Math.round(vs * 1.4));
+        if (draw) {
+          o.drawLabel(r, o.x, y, lw, vs, ls, rowH);
+          g.font = o.valueFont(vs); g.fillStyle = o.valueColor; g.textAlign = 'left';
+          lines.forEach((l, i) => g.fillText(l, vx, y + Math.round(vs * 1.03) + i * vlh));
+        }
+        y += rowH + Math.round(o.rowGap * scale);
       }
-      y += lines.length * vlh + Math.round(26 * scale);
     }
     if (desc) {
-      const ds = Math.round(34 * scale), dlh = Math.round(ds * 1.5), top = y + (rows.length ? Math.round(14 * scale) : 0);
-      g.font = `500 ${ds}px ${SANS}`;
-      const room = draw ? Math.floor((area.bottom - top) / dlh) : 3;
+      const ds = Math.round(o.ds * scale), dlh = Math.round(ds * 1.5), t0 = y + (rows.length ? Math.round(8 * scale) : 0);
+      g.font = o.descFont(ds);
+      const room = draw ? Math.floor((o.bottom - t0) / dlh) : 3;
       if (room > 0) {
-        const lines = wrapText(g, desc, W - M * 2, Math.min(room, 3));
-        if (draw) { g.fillStyle = t.muted; lines.forEach((l, i) => g.fillText(l, M, top + ds + i * dlh)); }
-        y = top + lines.length * dlh;
+        const lines = wrapText(g, desc, o.w, Math.min(room, 3));
+        if (draw) { g.fillStyle = o.descColor; g.textAlign = o.align; lines.forEach((l, i) => g.fillText(l, ax(), t0 + ds + i * dlh)); }
+        y = t0 + lines.length * dlh;
       }
     }
     return y;
   };
   let scale = 1;
-  const room0 = area.bottom - area.top;
-  while (scale > 0.6 && layout(scale, false) > area.bottom) scale -= 0.05;
-  const used = layout(scale, false) - area.top;
-  if (used < room0 * 0.6) area.top += Math.round((room0 - used) / 3);
-  layout(scale, true);
+  while (scale > 0.6 && run(scale, false, o.top) > o.bottom) scale -= 0.05;
+  const used = run(scale, false, o.top) - o.top, room = o.bottom - o.top;
+  run(scale, true, used < room * 0.8 ? o.top + Math.round((room - used) / (o.align === 'center' ? 2 : 3)) : o.top);
+  g.textAlign = 'left';
+}
 
-  // 外框
+/* ---------- 小插圖 ---------- */
+function star(g, x, y, r, color, rot = 0) {
+  g.beginPath();
+  for (let i = 0; i < 10; i++) { const a = rot - Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? r * 0.45 : r; g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); }
+  g.closePath(); g.fillStyle = color; g.fill();
+}
+function heart(g, x, y, s, color) {
+  g.beginPath(); g.moveTo(x, y + s * 0.3);
+  g.bezierCurveTo(x, y, x - s * 0.5, y, x - s * 0.5, y + s * 0.3);
+  g.bezierCurveTo(x - s * 0.5, y + s * 0.6, x, y + s * 0.75, x, y + s);
+  g.bezierCurveTo(x, y + s * 0.75, x + s * 0.5, y + s * 0.6, x + s * 0.5, y + s * 0.3);
+  g.bezierCurveTo(x + s * 0.5, y, x, y, x, y + s * 0.3);
+  g.fillStyle = color; g.fill();
+}
+function balloon(g, x, y, r, color, line) {
+  g.strokeStyle = line; g.lineWidth = 3;
+  g.beginPath(); g.moveTo(x, y + r * 1.2); g.quadraticCurveTo(x - r * 0.4, y + r * 1.9, x + r * 0.1, y + r * 2.6); g.stroke();
+  g.fillStyle = color;
+  g.beginPath(); g.ellipse(x, y, r * 0.85, r, 0, 0, Math.PI * 2); g.fill();
+  g.beginPath(); g.moveTo(x - 9, y + r * 1.22); g.lineTo(x + 9, y + r * 1.22); g.lineTo(x, y + r * 0.98); g.fill();
+  g.fillStyle = 'rgba(255,255,255,.45)'; g.beginPath(); g.ellipse(x - r * 0.35, y - r * 0.4, r * 0.15, r * 0.25, -0.5, 0, Math.PI * 2); g.fill();
+}
+function cloudFace(g, x, y, s, color, ink, cheek) {
+  g.fillStyle = color;
+  [[0, 0, 0.55], [-0.55, 0.12, 0.42], [0.55, 0.12, 0.42], [-0.25, -0.3, 0.42], [0.3, -0.25, 0.38]].forEach(([dx, dy, r]) => { g.beginPath(); g.arc(x + dx * s, y + dy * s, r * s, 0, Math.PI * 2); g.fill(); });
+  g.fillRect(x - 0.95 * s, y + 0.05 * s, 1.9 * s, 0.5 * s);
+  g.fillStyle = ink;
+  [-0.22, 0.22].forEach(dx => { g.beginPath(); g.arc(x + dx * s, y + 0.05 * s, 0.06 * s, 0, Math.PI * 2); g.fill(); });
+  g.strokeStyle = ink; g.lineWidth = Math.max(3, s * 0.05); g.lineCap = 'round';
+  g.beginPath(); g.arc(x, y + 0.12 * s, 0.13 * s, 0.15 * Math.PI, 0.85 * Math.PI); g.stroke(); g.lineCap = 'butt';
+  g.fillStyle = cheek;
+  [-0.4, 0.4].forEach(dx => { g.beginPath(); g.ellipse(x + dx * s, y + 0.22 * s, 0.09 * s, 0.055 * s, 0, 0, Math.PI * 2); g.fill(); });
+}
+function sprig(g, x, y, len, ang, stem, leaf) {
+  g.save(); g.translate(x, y); g.rotate(ang);
+  g.strokeStyle = stem; g.lineWidth = 2.5;
+  g.beginPath(); g.moveTo(0, 0); g.quadraticCurveTo(len * 0.5, -len * 0.12, len, 0); g.stroke();
+  for (let i = 1; i <= 5; i++) {
+    const px = len * i / 6, py = -len * 0.12 * Math.sin(Math.PI * i / 6), sz = len * (0.12 - i * 0.012);
+    [-1, 1].forEach(side => { g.save(); g.translate(px, py); g.rotate(side * 0.75); g.fillStyle = leaf; g.beginPath(); g.ellipse(sz, 0, sz, sz * 0.42, 0, 0, Math.PI * 2); g.fill(); g.restore(); });
+  }
+  g.fillStyle = leaf; g.beginPath(); g.ellipse(len + len * 0.07, 0, len * 0.08, len * 0.035, 0, 0, Math.PI * 2); g.fill();
+  g.restore();
+}
+
+/* ---------- 四種樣式 ---------- */
+function styleTicket(c) {
+  const { g, W, H, M, t } = c;
+  g.fillStyle = t.paper; g.fillRect(0, 0, W, H);
+  const T = fitTopic(g, c.topic, s => `900 ${s}px ${c.SERIF}`, [84, 70, 60], W - M * 2);
+  const lh = Math.round(T.size * 1.28), bandH = 150 + T.lines.length * lh + 50;
+  g.fillStyle = t.btn; g.fillRect(0, 0, W, bandH);
+  g.textAlign = 'center'; g.fillStyle = t.notch; g.font = `600 38px ${c.SERIF}`; g.fillText('邀　請　函', W / 2, 112);
+  g.fillRect(W / 2 - 185, 98, 64, 3); g.fillRect(W / 2 + 121, 98, 64, 3);
+  g.fillStyle = t.paper; g.font = `900 ${T.size}px ${c.SERIF}`;
+  T.lines.forEach((l, i) => g.fillText(l, W / 2, 150 + T.size + i * lh));
+  g.fillStyle = t.paper; [0, W].forEach(x => { g.beginPath(); g.arc(x, bandH, 34, 0, Math.PI * 2); g.fill(); });
+  g.strokeStyle = t.notch; g.lineWidth = 3; g.setLineDash([14, 12]); g.beginPath(); g.moveTo(56, bandH); g.lineTo(W - 56, bandH); g.stroke(); g.setLineDash([]);
+  const qr = drawQr(c, W - M - 190, H - 70 - 190, 190, '#1E2130', '#fff');
+  g.textAlign = 'left'; g.fillStyle = t.ink; g.font = `700 34px ${c.SANS}`; g.fillText(qr ? '掃描 QR code 開啟網頁' : '誠摯邀請您', M, H - 150);
+  if (c.host) { g.fillStyle = t.muted; g.font = `500 30px ${c.SANS}`; g.fillText(wrapText(g, '🔗 ' + c.host, W - M * 2 - 230, 1)[0] || '', M, H - 100); }
+  drawBody(c, { x: M, w: W - M * 2, top: bandH + 60, bottom: H - 280, vs: 40, ls: 32, ds: 34, rowGap: 22, labelW: 132, gap: 28,
+    valueFont: s => `500 ${s}px ${c.SANS}`, valueColor: t.ink, descFont: s => `500 ${s}px ${c.SANS}`, descColor: t.muted, align: 'left',
+    drawLabel: (r, x, y, lw, vs, ls) => { const mid = y + 0.67 * vs, h = Math.round(vs * 1.4); g.fillStyle = t.line; roundRect(g, x, mid - h / 2, lw, h, h / 2); g.fill(); g.fillStyle = t.ink; g.font = `700 ${ls}px ${c.SANS}`; g.textAlign = 'center'; g.fillText(r.k, x + lw / 2, mid + 0.36 * ls); } });
   g.strokeStyle = t.notch; g.lineWidth = 4; roundRect(g, 28, 28, W - 56, H - 56, 28); g.stroke();
-  return c.toDataURL('image/jpeg', 0.9);
+}
+
+function styleElegant(c) {
+  const { g, W, H, t } = c;
+  const bg = mix(t.paper, '#ffffff', 0.45), accent = t.notch, main = t.btn;
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  g.strokeStyle = accent; g.lineWidth = 2; g.strokeRect(40, 40, W - 80, H - 80);
+  g.lineWidth = 1; g.strokeRect(54, 54, W - 108, H - 108);
+  const stem = rgba(accent, 0.85), leaf = rgba(main, 0.32);
+  sprig(g, 64, 64, 190, 0.62, stem, leaf); sprig(g, W - 64, 64, 190, Math.PI - 0.62, stem, leaf);
+  sprig(g, 64, H - 64, 150, -0.62, stem, leaf); sprig(g, W - 64, H - 64, 150, Math.PI + 0.62, stem, leaf);
+  g.textAlign = 'center';
+  g.fillStyle = c.t.muted; g.font = `600 24px ${c.SERIF}`; g.fillText('I  N  V  I  T  A  T  I  O  N', W / 2, 150);
+  g.fillStyle = accent; g.fillRect(W / 2 - 120, 176, 90, 1.5); g.fillRect(W / 2 + 30, 176, 90, 1.5);
+  g.save(); g.translate(W / 2, 177); g.rotate(Math.PI / 4); g.fillRect(-6, -6, 12, 12); g.restore();
+  const T = fitTopic(g, c.topic, s => `900 ${s}px ${c.SERIF}`, [74, 64, 54], W - 300);
+  const lh = Math.round(T.size * 1.32);
+  g.fillStyle = main; g.font = `900 ${T.size}px ${c.SERIF}`;
+  T.lines.forEach((l, i) => g.fillText(l, W / 2, 230 + T.size + i * lh));
+  const after = 230 + T.lines.length * lh + 40;
+  g.fillStyle = accent; g.beginPath(); g.arc(W / 2, after, 5, 0, Math.PI * 2); g.fill();
+  g.fillRect(W / 2 - 70, after - 0.75, 52, 1.5); g.fillRect(W / 2 + 18, after - 0.75, 52, 1.5);
+  const qs = 150, qy = H - 96 - qs;
+  const qr = drawQr(c, W / 2 - qs / 2, qy, qs, t.ink, '#ffffff');
+  if (qr) { g.fillStyle = t.muted; g.font = `500 24px ${c.SERIF}`; g.textAlign = 'center'; g.fillText('掃描開啟網頁', W / 2, qy - 18); }
+  drawBody(c, { x: 230, w: W - 460, top: after + 40, bottom: (qr ? qy - 60 : H - 120), vs: 38, ls: 30, ds: 32, rowGap: 20, labelW: 110, gap: 26, align: 'left',
+    valueFont: s => `600 ${s}px ${c.SERIF}`, valueColor: t.ink, descFont: s => `500 ${s}px ${c.SERIF}`, descColor: t.muted,
+    drawLabel: (r, x, y, lw, vs, ls) => { const mid = y + 0.67 * vs; g.fillStyle = accent; g.font = `700 ${ls}px ${c.SERIF}`; g.textAlign = 'left'; g.fillText(r.k.split('').join(' '), x, mid + 0.36 * ls); g.fillRect(x + lw - 4, mid - ls * 0.45, 1.5, ls * 0.9); } });
+}
+
+function styleCute(c) {
+  const { g, W, H, M, t } = c;
+  const bg = mix(t.paper, '#ffffff', 0.35);
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  g.fillStyle = rgba(t.notch, 0.2);
+  for (let y = 40, row = 0; y < H; y += 80, row++) for (let x = row % 2 ? 80 : 40; x < W; x += 80) { g.beginPath(); g.arc(x, y, 7, 0, Math.PI * 2); g.fill(); }
+  const T = fitTopic(g, c.topic, s => `900 ${s}px ${c.SANS}`, [80, 68, 58], W - 2 * 230);
+  const lh = Math.round(T.size * 1.25), bandH = 140 + T.lines.length * lh + 60;
+  g.fillStyle = t.btn; g.fillRect(0, 0, W, bandH - 30);
+  for (let x = 30; x < W + 30; x += 60) { g.beginPath(); g.arc(x, bandH - 30, 30, 0, Math.PI); g.fill(); }
+  [[200, 60, 14], [1010, 300, 11], [940, 70, 9], [150, bandH - 80, 10], [1080, bandH - 90, 13]].forEach(([x, y, r], i) => star(g, x, y, r, rgba(t.paper, 0.55), i));
+  balloon(g, 110, 150, 50, t.notch, rgba(t.paper, 0.8));
+  balloon(g, 1085, 175, 44, mix(t.notch, '#ffffff', 0.35), rgba(t.paper, 0.8));
+  g.textAlign = 'center'; g.fillStyle = t.notch; g.font = `900 34px ${c.SANS}`; g.fillText('🎉 邀請你一起來 🎉', W / 2, 98);
+  g.fillStyle = t.paper; g.font = `900 ${T.size}px ${c.SANS}`;
+  T.lines.forEach((l, i) => g.fillText(l, W / 2, 140 + T.size + i * lh));
+  const icons = { 時間: '🕒', 地點: '📍', 費用: '💰', 對象: '👥', 聯絡: '📞' };
+  const qs = 180, qx = W - M - qs, qy = H - 70 - qs;
+  g.fillStyle = '#ffffff'; roundRect(g, qx - 14, qy - 14, qs + 28, qs + 28, 26); g.fill();
+  g.strokeStyle = t.notch; g.lineWidth = 4; g.setLineDash([12, 10]); roundRect(g, qx - 14, qy - 14, qs + 28, qs + 28, 26); g.stroke(); g.setLineDash([]);
+  const qr = drawQr(c, qx, qy, qs, t.ink, '#ffffff', 0);
+  cloudFace(g, 165, H - 165, 110, '#ffffff', t.ink, rgba(t.btn, 0.35));
+  heart(g, 275, H - 265, 34, rgba(t.btn, 0.75)); heart(g, 310, H - 225, 22, rgba(t.notch, 0.9));
+  g.textAlign = 'left'; g.fillStyle = t.btn; g.font = `900 38px ${c.SANS}`; g.fillText('快來參加喔！', 300, H - 150);
+  g.fillStyle = t.muted; g.font = `700 26px ${c.SANS}`; g.fillText(qr ? '掃描 QR code 看更多 →' : (c.host || ''), 300, H - 105);
+  drawBody(c, { x: M + 20, w: W - M * 2 - 40, top: bandH + 30, bottom: H - 300, vs: 38, ls: 30, ds: 32, rowGap: 22, labelW: 168, gap: 18,
+    valueFont: s => `700 ${s}px ${c.SANS}`, valueColor: t.ink, descFont: s => `700 ${s}px ${c.SANS}`, descColor: t.muted, align: 'left',
+    drawLabel: (r, x, y, lw, vs, ls, rowH) => {
+      g.fillStyle = 'rgba(255,255,255,.88)'; roundRect(g, x - 22, y - 10, W - M * 2 + 4, rowH + 20, 28); g.fill();
+      const mid = y + 0.67 * vs;
+      g.font = `${Math.round(vs * 0.95)}px ${c.SANS}`; g.textAlign = 'left'; g.fillText(icons[r.k] || '⭐', x - 2, mid + vs * 0.34);
+      g.fillStyle = t.btn; g.font = `900 ${ls}px ${c.SANS}`; g.fillText(r.k, x + vs * 1.15, mid + 0.36 * ls);
+    } });
+}
+
+function styleTech(c) {
+  const { g, W, H, M, t } = c;
+  const bg = mix('#0A0D15', t.btn, 0.2), accent = mix(t.notch, '#ffffff', 0.15), accent2 = mix(t.btn, '#ffffff', 0.4);
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  g.strokeStyle = 'rgba(255,255,255,.05)'; g.lineWidth = 1;
+  for (let x = 0; x <= W; x += 48) { g.beginPath(); g.moveTo(x + 0.5, 0); g.lineTo(x + 0.5, H); g.stroke(); }
+  for (let y = 0; y <= H; y += 48) { g.beginPath(); g.moveTo(0, y + 0.5); g.lineTo(W, y + 0.5); g.stroke(); }
+  const glow = g.createRadialGradient(W - 140, 160, 10, W - 140, 160, 420); glow.addColorStop(0, rgba(accent2, 0.35)); glow.addColorStop(1, rgba(accent2, 0));
+  g.fillStyle = glow; g.fillRect(0, 0, W, H);
+  g.strokeStyle = rgba(accent, 0.35); g.lineWidth = 2; g.beginPath(); g.arc(W - 140, 160, 250, 0, Math.PI * 2); g.stroke();
+  g.strokeStyle = rgba(accent2, 0.7); g.lineWidth = 10; g.beginPath(); g.arc(W - 140, 160, 190, Math.PI * 0.55, Math.PI * 1.25); g.stroke();
+  g.strokeStyle = accent; g.lineWidth = 4;
+  [[40, 40, 1, 1], [W - 40, 40, -1, 1], [40, H - 40, 1, -1], [W - 40, H - 40, -1, -1]].forEach(([x, y, sx, sy]) => { g.beginPath(); g.moveTo(x, y + sy * 60); g.lineTo(x, y); g.lineTo(x + sx * 60, y); g.stroke(); });
+  const MONO = 'ui-monospace, "SFMono-Regular", "Roboto Mono", Menlo, monospace';
+  g.textAlign = 'left'; g.fillStyle = accent; g.font = `700 26px ${MONO}`; g.fillText('// INVITATION', M, 128);
+  const T = fitTopic(g, c.topic, s => `900 ${s}px ${c.SANS}`, [80, 68, 58], W - M * 2 - 120);
+  const lh = Math.round(T.size * 1.22);
+  g.fillStyle = '#F4F6FB'; g.font = `900 ${T.size}px ${c.SANS}`;
+  T.lines.forEach((l, i) => g.fillText(l, M, 160 + T.size + i * lh));
+  const after = 160 + T.lines.length * lh + 34;
+  const bar = g.createLinearGradient(M, 0, M + 260, 0); bar.addColorStop(0, accent); bar.addColorStop(1, accent2);
+  g.fillStyle = bar; g.fillRect(M, after, 260, 6);
+  g.fillStyle = bar; g.fillRect(M - 40, 120, 6, after - 120 + 6);
+  const qs = 180, qx = W - M - qs, qy = H - 80 - qs;
+  const qr = drawQr(c, qx, qy, qs, '#0A0D15', '#ffffff');
+  if (qr) { g.strokeStyle = accent; g.lineWidth = 3; g.strokeRect(qx - 10, qy - 10, qs + 20, qs + 20); }
+  g.fillStyle = accent; g.font = `700 26px ${MONO}`; g.fillText(qr ? '> SCAN TO OPEN' : '> SEE YOU THERE', M, H - 150);
+  if (c.host) { g.fillStyle = '#AEB6C8'; g.font = `500 28px ${c.SANS}`; g.fillText(wrapText(g, c.host, W - M * 2 - 240, 1)[0] || '', M, H - 104); }
+  drawBody(c, { x: M, w: W - M * 2, top: after + 56, bottom: H - 290, vs: 38, ls: 28, ds: 30, rowGap: 30, labelW: 140, gap: 24,
+    valueFont: s => `500 ${s}px ${c.SANS}`, valueColor: '#E9ECF4', descFont: s => `500 ${s}px ${c.SANS}`, descColor: '#9AA3B5', align: 'left',
+    drawLabel: (r, x, y, lw, vs, ls, rowH) => {
+      const mid = y + 0.67 * vs;
+      g.fillStyle = accent; g.fillRect(x, mid - ls * 0.5, 5, ls);
+      g.font = `700 ${ls}px ${c.SANS}`; g.textAlign = 'left'; g.fillText(r.k, x + 18, mid + 0.36 * ls);
+      g.fillStyle = 'rgba(255,255,255,.08)'; g.fillRect(x, y + rowH + 14, W - M * 2, 1);
+    } });
+}
+const STYLE_DRAW = { ticket: styleTicket, elegant: styleElegant, cute: styleCute, tech: styleTech };
+
+/** 畫邀請卡（1200×1200），回傳 JPEG 的 data URL */
+async function drawInvite(d) {
+  const t = themeOf(d), info = d.info || {};
+  const url = normUrl(d.url);
+  const c = {
+    W: 1200, H: 1200, M: 90, t, url, host: hostOf(url),
+    topic: (info.topic || d.title || '').trim() || '邀請',
+    rows: infoRows(info), desc: (d.desc || '').trim(),
+    SERIF: '"Noto Serif TC", "Songti TC", serif', SANS: '"Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif',
+  };
+  const all = c.topic + c.rows.map(r => r.k + r.v).join('') + c.desc + c.host + '邀請函誠摯您掃描開啟網頁快來參加喔一起看更多';
+  if (document.fonts && document.fonts.load) await Promise.all(['900 80px "Noto Serif TC"', '600 40px "Noto Serif TC"', '500 40px "Noto Sans TC"', '700 40px "Noto Sans TC"', '900 40px "Noto Sans TC"']
+    .map(f => document.fonts.load(f, all))).catch(() => {});
+  c.QR = await loadQr();
+  const cv = document.createElement('canvas'); cv.width = c.W; cv.height = c.H;
+  c.g = cv.getContext('2d'); c.g.textBaseline = 'alphabetic';
+  (STYLE_DRAW[d.inviteStyle] || STYLE_DRAW[savedStyle()])(c);
+  return cv.toDataURL('image/jpeg', 0.9);
 }
 
 let inviteTimer = 0, inviteSeq = 0;
@@ -1017,17 +1197,23 @@ function scheduleInvite(d, now) {
 function syncInvite(d) {
   const box = $('invite-box');
   if (!box) return;
-  box.innerHTML = d.invite
-    ? `<p class="help ok">✓ 已用邀請卡當圖卡的圖片。修改上面的資料，邀請卡會跟著更新。</p>
+  d.inviteStyle = INVITE_STYLES[d.inviteStyle] ? d.inviteStyle : savedStyle();
+  const chips = `<div class="inv-head"><b>邀請卡樣式</b><small>顏色用上方的「圖卡色調」，可以自由搭配</small></div>
+    <div class="inv-styles" role="radiogroup" aria-label="邀請卡樣式">${Object.entries(INVITE_STYLES).map(([id, s]) =>
+      `<button type="button" role="radio" aria-checked="${d.invite && d.inviteStyle === id}" data-style="${id}"><i aria-hidden="true">${s.icon}</i><span>${s.name}</span></button>`).join('')}</div>`;
+  box.innerHTML = chips + (d.invite
+    ? `<p class="help ok">✓ 已用「${INVITE_STYLES[d.inviteStyle].name}」邀請卡當圖卡的圖片。換樣式、換色調或修改資料，邀請卡都會跟著更新。</p>
        <div class="btn-row"><button type="button" class="btn plain small" id="inv-view">看大圖／儲存</button><button type="button" class="btn plain small" id="inv-off">改回原本的圖片</button></div>`
-    : `<button type="button" class="btn plain" id="inv-make">🎟 產生邀請卡，當作圖卡的圖片</button>
-       <p class="help">會用上面的活動資訊、圖卡色調和網址 QR code，畫成一張正方形邀請卡。</p>`;
-  if ($('inv-make')) $('inv-make').onclick = () => {
+    : `<p class="help">點一種樣式，就會用上面的活動資訊、圖卡色調和網址 QR code，畫成一張正方形邀請卡，當作圖卡的圖片。</p>`);
+  box.querySelectorAll('[data-style]').forEach(b => b.onclick = () => {
     if (!hasInfo(d.info) && !d.title.trim()) { toast('請先填活動主題或標題'); return; }
-    d.invite = true; d.prevImage = d.image; d.prevRatio = d.ratio;
-    d.picked = ''; renderCands(d); syncInvite(d); scheduleInvite(d, true);
-    $('pv').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
+    const first = !d.invite;
+    d.inviteStyle = b.dataset.style;
+    try { localStorage.setItem(STYLE_KEY, d.inviteStyle); } catch (e) {}
+    if (first) { d.invite = true; d.prevImage = d.image; d.prevRatio = d.ratio; d.picked = ''; renderCands(d); }
+    syncInvite(d); scheduleInvite(d, true);
+    if (first) $('pv').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
   if ($('inv-off')) $('inv-off').onclick = () => {
     d.invite = false; d.inviteData = ''; d.image = d.prevImage || d.image; d.ratio = d.prevRatio || '1.91:1';
     syncInvite(d); syncImage(d); preview(d);
@@ -1202,7 +1388,7 @@ const TOUR_STEPS = [
   { since: 1, tab: 'new', target: () => q1('[data-k=desc]') && q1('[data-k=desc]').closest('.group'), title: '標題與想說的話',
     text: '標題會自動帶入，可以改成更好懂的名字；再寫一兩句推薦的話，大家比較願意點開。' },
   { since: 2, tab: 'new', target: () => q1('#info-group'), title: '活動資訊與邀請卡',
-    text: '要分享活動時，可以填主題、時間、地點、費用等資訊（都是選填），會整齊地顯示在圖卡上。再按「產生邀請卡」，就會自動畫成一張邀請卡當作圖卡的圖片，也可以存下來另外分享。' },
+    text: '要分享活動時，可以填主題、時間、地點、費用等資訊（都是選填），會整齊地顯示在圖卡上。再點一種邀請卡樣式（經典票券、淡雅、可愛插畫、科技現代），就會自動畫成邀請卡當作圖卡的圖片；搭配上方的圖卡色調可以有很多組合，也可以存下來另外分享。' },
   { since: 1, tab: 'new', target: () => q1('#img-group'), title: '預覽圖',
     text: '網頁有預覽圖就會自動用上。沒有的話可以從手機上傳一張，會自動縮小後存好。' },
   { since: 1, tab: 'new', target: () => q1('#btn-group'), title: '按鈕',

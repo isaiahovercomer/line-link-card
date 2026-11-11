@@ -1,6 +1,6 @@
 // 安裝到手機桌面用的 Service Worker。
 // 一律先抓網路上的最新版，抓不到（離線）才用上次存下來的，所以更新網頁後不會卡在舊版。
-const CACHE = 'linkcard-v4';
+const CACHE = 'linkcard-v5';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/icon.svg'];
 
 self.addEventListener('install', e => {
