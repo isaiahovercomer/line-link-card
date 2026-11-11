@@ -19,10 +19,15 @@
 <title>LINE網頁圖卡分享建立平台</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;900&display=swap" rel="stylesheet">
+<!-- 字型表不擋畫面：先用系統字畫出來，字型下載好再換上（原本就是 display=swap） -->
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;900&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;900&display=swap" rel="stylesheet"></noscript>
 <link rel="preconnect" href="https://script.google.com" crossorigin>
 <link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
-<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<link rel="preconnect" href="https://api.line.me" crossorigin>
+<link rel="preconnect" href="https://static.line-scdn.net">
+<!-- LINE 元件改成背景下載，不擋住第一個畫面；程式裡等它載好才初始化 -->
+<link rel="preload" href="https://static.line-scdn.net/liff/edge/2/sdk.js" as="script">
 <style>
   :root {
     color-scheme: only light;
@@ -257,6 +262,15 @@ const OWN_HOSTS = ['isaiahovercomer.github.io/interlinear-bible/'];
 
 const PARAMS = new URLSearchParams(location.search);
 const DEMO = LIFF_ID.startsWith('請填') || PARAMS.has('demo');
+
+/* LINE 元件在背景下載（head 已 preload）；LIFF_INIT 完成後才能用 liff 的登入、分享等功能 */
+const liffReady = DEMO ? Promise.resolve() : new Promise((ok, ng) => {
+  const s = document.createElement('script');
+  s.src = 'https://static.line-scdn.net/liff/edge/2/sdk.js';
+  s.onload = ok; s.onerror = () => ng(new Error('無法載入 LINE 元件，請檢查網路後重新開啟'));
+  document.head.appendChild(s);
+});
+let LIFF_INIT = Promise.resolve();
 const $app = document.getElementById('app');
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
@@ -313,6 +327,7 @@ async function demoApi(action, d) {
   const find = id => demo.cards.find(c => c.id === id);
   switch (action) {
     case 'me': return { ok: true, ...demo.me };
+    case 'boot': return { ok: true, me: { ...demo.me }, cards: demo.cards };
     case 'card': return { ok: true, card: find(d.cardId) || demo.cards[0] };
     case 'listCards': return { ok: true, cards: demo.cards };
     case 'fetchMeta': {
@@ -346,11 +361,12 @@ async function api(action, data = {}) {
   const body = { action, ...data };
   if (action !== 'card') {
     const s = action === 'session' ? null : getSession();
-    if (s) body.session = s.token; else body.idToken = liff.getIDToken();
+    if (s) body.session = s.token; else { await LIFF_INIT; body.idToken = liff.getIDToken(); }
   }
   const r = await fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) });
   const j = await r.json();
   if (!j.ok) {
+    if (j.error === 'SESSION_EXPIRED' || j.error === 'TOKEN_EXPIRED') await LIFF_INIT;
     if (j.error === 'SESSION_EXPIRED') {
       setSession(null);
       if (liff.isLoggedIn()) return api(action, data);
@@ -364,18 +380,37 @@ async function api(action, data = {}) {
 
 /* ================= 入口 ================= */
 let ME = null, CARDS = [], TAB = 'new', ROUTE = { view: 'tabs' };
-let BOOT = null;
+let BOOT = null, EARLY_CARD = null;
+/** 一次抓「我是誰」和圖卡列表：新版後端合併成一個請求（沒有通行證時順便發一張）；舊版後端退回兩個請求並行 */
+const fetchBoot = async () => {
+  try {
+    const j = await api('boot');
+    if (j.session) setSession(j.session);
+    return [j.me, j];
+  } catch (e) {
+    if (e.message !== '未知的動作') throw e;
+    if (!DEMO && !getSession() && liff.isLoggedIn()) { try { setSession(await api('session')); } catch (e) {} }
+    return Promise.all([api('me'), api('listCards')]);
+  }
+};
 
 async function main() {
   try {
     if (PARAMS.has('add')) return addFlow();          // 加到主畫面說明頁：不用登入，在手機瀏覽器開
     if (PARAMS.has('install')) return installFlow();  // 把平台本身裝到手機桌面
     const platform = !PARAMS.has('share') && !PARAMS.has('mydata');
-    if (platform && (DEMO || getSession())) BOOT = Promise.all([api('me'), api('listCards')]);
+    if (!DEMO) LIFF_INIT = liffReady.then(() => liff.init({ liffId: LIFF_ID }));
+    // 已有通行證：不用等 LINE 初始化，馬上開始抓資料
+    if (platform && (DEMO || getSession())) BOOT = fetchBoot();
+    // 轉傳頁的圖卡資料不需要登入，跟 LINE 初始化同時抓
+    if (!PARAMS.has('mydata') && PARAMS.has('share')) { EARLY_CARD = api('card', { cardId: PARAMS.get('share') }); EARLY_CARD.catch(() => {}); }
     if (!DEMO) {
-      await liff.init({ liffId: LIFF_ID });
+      // 有通行證又有上次的資料：先畫平台，LINE 在背景初始化（要用 LINE 功能的按鈕會等它好）
+      if (platform && BOOT && readCache()) { LIFF_INIT.catch(e => toast(e.message)); return await publisherFlow(); }
+      await LIFF_INIT;
       if (!liff.isLoggedIn() && !getSession()) { liff.login({ redirectUri: location.href }); return; }
-      if (liff.isLoggedIn() && !getSession()) { try { setSession(await api('session')); } catch (e) {} }
+      if (platform && !BOOT) BOOT = fetchBoot(); // 第一次登入：同一個請求順便發通行證
+      else if (liff.isLoggedIn() && !getSession()) { try { setSession(await api('session')); } catch (e) {} }
     }
     if (PARAMS.has('mydata')) await myDataFlow();
     else if (PARAMS.has('share')) await forwardFlow(PARAMS.get('share'));
@@ -473,7 +508,7 @@ function addFlow() {
 let installPrompt = null;
 addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; });
 function startInstall() {
-  if (!DEMO && liff.isInClient && liff.isInClient()) { liff.openWindow({ url: `${BASE}?install=1`, external: true }); return; }
+  if (!DEMO && window.liff && liff.isInClient && liff.isInClient()) { liff.openWindow({ url: `${BASE}?install=1`, external: true }); return; }
   installFlow();
 }
 function installFlow() {
@@ -508,7 +543,8 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
 /* ================= 轉傳圖卡給其他群組或朋友 ================= */
 async function forwardFlow(id) {
   view(loading());
-  const { card } = await api('card', { cardId: id });
+  const p = EARLY_CARD || api('card', { cardId: id }); EARLY_CARD = null;
+  const { card } = await p;
   if (!card) throw new Error('找不到這張圖卡，可能已經被刪除');
   document.title = card.title;
   view(`<section class="solo">
@@ -525,6 +561,7 @@ const myDataLink = () => `<a class="mydata-link" href="#" id="mydata-link">我�
 const bindMyDataLink = () => { if ($('mydata-link')) $('mydata-link').onclick = e => { e.preventDefault(); myDataFlow(); }; };
 async function myDataFlow() {
   view(loading());
+  await LIFF_INIT.catch(() => {});
   document.title = '我的個人資料';
   const d = await api('myData');
   const back = `<button class="btn plain" style="margin-top:12px" id="md-back">回到平台</button>`;
@@ -552,7 +589,7 @@ let EDIT = null; // 正在編輯的圖卡
 
 async function publisherFlow() {
   const restoreDraft = () => { try { const saved = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); if (saved) { draft = { ...blankDraft(), ...saved }; localStorage.removeItem(DRAFT_KEY); setTimeout(() => toast('已登入，內容都還在，按「發送到 LINE 群組」繼續'), 300); } } catch (e) {} };
-  if (!BOOT) BOOT = Promise.all([api('me'), api('listCards')]);
+  if (!BOOT) BOOT = fetchBoot();
   const cache = readCache();
   if (cache && cache.me && !DEMO) {
     ME = cache.me; CARDS = cache.cards || [];
@@ -1254,8 +1291,10 @@ function formProblem(d) {
   return '';
 }
 /** 在 LINE 外面發送到群組，要先登入 LINE；先把填好的內容存起來 */
-function needLogin(d) {
-  if (DEMO || liff.isLoggedIn()) return false;
+async function needLogin(d) {
+  if (DEMO) return false;
+  try { await LIFF_INIT; } catch (e) { toast(e.message); return true; } // 平台先畫好時，LINE 可能還在背景初始化
+  if (liff.isLoggedIn()) return false;
   if (d) try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...d, inviteData: '' })); } catch (e) {}
   toast('發送到群組前需要登入 LINE 一次');
   setTimeout(() => liff.login({ redirectUri: location.href }), 600);
@@ -1270,7 +1309,7 @@ function renderCompose() {
 
 async function createAndSend() {
   const p = formProblem(draft); if (p) { toast(p); return; }
-  if (needLogin(draft)) return;
+  if (await needLogin(draft)) return;
   const btn = $('send');
   btn.disabled = true; btn.textContent = '建立中';
   try {
@@ -1334,7 +1373,7 @@ function renderDetail(id) {
   $('edit').onclick = () => go({ view: 'edit', id });
   $('copy').onclick = () => copyText(c.url, '已複製網址');
   $('resend').onclick = async () => {
-    if (needLogin(null)) return;
+    if (await needLogin(null)) return;
     if (await share(c)) {
       try { const r = await api('markSent', { cardId: id }); Object.assign(c, r.card); writeCache(); renderDetail(id); } catch (e) {}
     }
@@ -1359,7 +1398,7 @@ function renderEdit(id) {
   $('back').onclick = () => go({ view: 'detail', id });
   const save = async send => {
     const p = formProblem(EDIT); if (p) { toast(p); return; }
-    if (send && needLogin(null)) return;
+    if (send && await needLogin(null)) return;
     $('save').disabled = $('save-send').disabled = true;
     try {
       await finalizeInvite(EDIT);
@@ -1508,6 +1547,7 @@ function endTour() {
 /* ================= 發送到群組 ================= */
 async function share(c) {
   if (DEMO) { console.log(JSON.stringify(buildFlex(c))); toast('預覽模式：正式版會在這裡跳出群組選單'); return false; }
+  try { await LIFF_INIT; } catch (e) { toast(e.message); return false; }
   if (!liff.isLoggedIn()) { toast('發送到群組前需要登入 LINE 一次'); setTimeout(() => liff.login({ redirectUri: location.href }), 600); return false; }
   if (!liff.isApiAvailable('shareTargetPicker')) { toast('無法開啟群組選單，請確認 LIFF 已開啟 Share target picker'); return false; }
   try {
